@@ -24,7 +24,7 @@ def weights_from_function(
         return ()
 
     if family == "meteora_spot":
-        weights = [1.0 for _ in range(1, bins + 1)]
+        weights = [1.0] * bins
     elif family == "meteora_curve":
         sigma = float(params.get("sigma", bins / 2 if bins else 1))
         if sigma <= 0:
@@ -102,12 +102,12 @@ def preview_allocation(
 
     raw_amounts = [total_amount * weight / total_weight for weight in weights]
     allocations = [int(math.floor(amount)) for amount in raw_amounts]
-    remainder = total_amount - sum(allocations)
-    if remainder:
+    tokens_to_distribute = total_amount - sum(allocations)
+    if tokens_to_distribute:
         fractions = [raw_amounts[i] - allocations[i] for i in range(len(weights))]
         for index in sorted(
             range(len(weights)), key=lambda i: (-fractions[i], i)
-        )[:remainder]:
+        )[:tokens_to_distribute]:
             allocations[index] += 1
 
     left_allocations = allocations[: len(left_weights)]
