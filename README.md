@@ -14,6 +14,15 @@ This whitepaper is published alongside the initial Origin DEX deployment. It con
 
 Nothing in this document should be interpreted as an entitlement to future distributions, rewards, or token allocations.
 
+## Build (from this .md)
+Generate an HTML artifact of this whitepaper:
+
+```bash
+make build
+```
+
+Output is written to `build/index.html`. Use `make clean` to remove it.
+
 ---
 
 ## 1) Summary
