@@ -238,9 +238,10 @@ Fee accounting must remain correct for:
 Let:
 - `b0` be the center bin (typically the active bin at deposit time)
 - `d` be distance from center in bins, `d = |binId - b0|`
+- left side bins have `binId < b0`, right side bins have `binId > b0`
 
 **V1 rule (no active-bin deposits):**
-- Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on the left side (`d = 1..NL`) and right side (`d = 1..NR`) (V1 rejects instructions attempting `d = 0`).
+- Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on the left side (`d = 1..NL`) and right side (`d = 1..NR`).
 
 LP defines two parameterized functions:
 - left side: `wL(d) = fL(d; θL)` for `d = 1..NL`
@@ -251,6 +252,7 @@ The protocol:
 2) normalizes weights across all bins so total weight sums to 1  
 3) converts weights into exact token amounts  
 4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights.  
+   Bin order is by increasing distance from center within each side.  
    Tie-breaker: when fractional weights tie, allocate to left bins starting from the closest bin to center (`d = 1..NL`), then to right bins starting from the closest bin to center (`d = 1..NR`).  
 5) writes liquidity to bins and updates the position
 
