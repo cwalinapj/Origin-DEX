@@ -40,7 +40,7 @@ Origin DEX is a standalone Solana DEX based on **bin liquidity** with one differ
 
 > **Function-based, two-sided bin allocation at LP deposit time.**
 
-Liquidity providers choose a left and right parameterized function that controls how their deposit is distributed across bins around the active price. The protocol converts the function output into a deterministic per-bin allocation.
+Liquidity providers choose a **left** and **right** parameterized function that controls how their deposit is distributed across bins around the active price. The protocol converts the function output into a deterministic per-bin allocation.
 
 The functions are used **only during allocation**. After allocation:
 - liquidity does not reshape itself
@@ -55,7 +55,7 @@ V1 provides:
 
 ## 2) Motivation
 Liquidity placement is one of the most important levers in AMMs. Many designs either:
-- restrict placement to a few preset distributions, or
+- restrict placement to a few “preset” distributions, or
 - expose too much expressiveness in ways that are difficult to simulate, audit, and keep safe.
 
 Origin DEX aims for a middle path:
