@@ -4,7 +4,7 @@
 **Launch posture:** V1 ships what must work. Everything else is roadmap.
 
 ## 0) Read This First
-This whitepaper is published alongside the initial Origin DEX deployment. It provides:
+This whitepaper is published alongside the initial Origin DEX deployment. It contains:
 - a **precise description** of what V1 ships
 - a **roadmap** of what we want to build later
 
