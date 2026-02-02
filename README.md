@@ -3,6 +3,53 @@
 **Network:** Solana  
 **Launch posture:** V1 ships what must work. Everything else is roadmap.
 
+Optional LP NFT Staking + Accounting Model (V1)
+
+Two modes
+	•	Unstaked (default): user keeps custody of the LP NFT/position. UI computes “value now” on-demand (same idea as Orca/Raydium: read position + pool/oracle state → compute). No on-chain writes needed.
+	•	Staked (optional): user deposits the LP NFT/position into an escrow vault controlled by our program. This mode enables immutable deposit/withdraw receipts + vault-level accounting for reviewers.
+
+What we record on-chain (minimal + immutable)
+
+Per stake (StakeRecord)
+	•	staker_pubkey
+	•	position_pubkey (or NFT mint / position account)
+	•	deposit_slot/time
+	•	function_params_hash (or full params if small)
+	•	deposit_value_quote (e.g., USDC microunits or SOL lamports)
+	•	(optional) deposit_amounts_x/y
+
+Per unstake (UnstakeRecord)
+	•	withdraw_slot/time
+	•	withdraw_value_quote
+	•	(optional) withdraw_amounts_x/y
+	•	Duration is derived: withdraw_time - deposit_time
+
+Per epoch (EpochVaultSummary) — ONE write per epoch
+	•	epoch_number
+	•	snapshot_slot/time
+	•	vault_total_value_quote (sum of staked vault positions only)
+	•	position_count
+	•	(optional) safe aggregates like median, p95, top10_share
+
+✅ We do not store per-position values each epoch (avoids making an easy indexed leaderboard + keeps fees tiny).
+
+Off-chain jobs (keeper)
+	•	Each epoch, a keeper:
+	1.	loads all currently staked positions
+	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source
+	3.	sums to vault_total_value_quote
+	4.	submits one tx: EpochVaultSummary(...)
+	•	UI can still compute per-position value “now” on demand for any wallet/position.
+
+UI expectations
+	•	My Positions: unstaked positions (value live), button: “Stake to Vault” (optional)
+	•	My Vault: staked positions, shows deposit/withdraw receipts + duration
+	•	Vault Accounting: chart/table from EpochVaultSummary, plus Print/Export receipts
+
+⸻
+
+
 Curve Presets (GUI) + Param API (Origin OS)
 
 The DEX exposes a single deterministic distribution engine that converts deposits into per-bin liquidity allocations. Humans use picture-based presets in the GUI (V/U/Walls/Bowl/etc). The Origin OS / LAM uses an API param object that maps to the same preset engine.
