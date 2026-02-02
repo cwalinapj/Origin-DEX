@@ -1,7 +1,7 @@
 # Origin DEX — Whitepaper v0.1
 **Status:** Public draft (v0.1)  
 **Network:** Solana  
-**Launch posture:** V1 ships only what must work. Everything else is roadmap.
+**Launch approach:** V1 ships only what must work. Everything else is roadmap.
 
 ## Read This First
 This whitepaper accompanies the initial Origin DEX deployment. It provides:
@@ -36,7 +36,7 @@ TARGET_SOL=2 AIRDROP_CHUNK=1 TARGET_USDC=40 ./scripts/setup_devnet_wallet_macos_
 `chmod` only needs to be run once per machine. This script is intended for macOS; other platforms may need a similar flow.
 
 ## 1) Summary
-Origin DEX is a standalone Solana DEX based on **bin liquidity** with one differentiator:
+Origin DEX is a standalone Solana DEX based on **bin liquidity** and offers one key differentiator:
 
 > **Function-based, two-sided bin allocation at LP deposit time.**
 
