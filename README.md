@@ -181,6 +181,15 @@ These are protocol rules designed to keep execution safe and predictable.
 
 This keeps accounting simple and prevents hidden state changes.
 
+### 7.4 Security invariants (V1)
+- mode_registry changes cannot move funds (only blocks new activity)
+- Immutable money core: collateral_vault and session_escrow are not upgradeable
+- Objective claims only (no subjective adjudication in v1)
+- Payment mint == collateral mint == insurance mint per session
+- Provider cannot withdraw without valid permit
+- Permits are one-time (nonce tracking)
+- Reserved collateral backs all active sessions
+
 ---
 
 ## 8) “Open LP Positions Easily” (Developer + User Simplicity)
