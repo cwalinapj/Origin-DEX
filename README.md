@@ -37,7 +37,7 @@ Per epoch (EpochVaultSummary) — ONE write per epoch
 Off-chain jobs (keeper)
 	•	Each epoch, a keeper:
 	1.	loads all currently staked positions
-	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source. For V1, the price source is the pool spot mid price (the midpoint price implied by the active bin) at the snapshot slot recorded in EpochVaultSummary.
+	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source. For V1, the price source is the pool spot mid price at the snapshot slot recorded in EpochVaultSummary. The spot mid price is the midpoint price implied by the active bin.
 	3.	sums to vault_total_value_quote
 	4.	submits one tx: EpochVaultSummary(...)
 	•	UI can still compute per-position value “now” on demand for any wallet/position.
@@ -169,7 +169,7 @@ Origin DEX aims for a middle path:
 Bin-style liquidity AMMs and discretized liquidity designs have been explored across DeFi.
 
 On Solana specifically, Origin DEX acknowledges the influence of **Meteora’s DLMM** as prior art that helped validate bin-based liquidity as a practical market structure on Solana.
-V1 implementation begins by forking DLMM-style components and then extending allocation to parameterized two-sided functions.
+V1 implementation begins by forking DLMM-style components (bin-based AMM structure and fee accounting) and then extending allocation to parameterized two-sided functions.
 
 Origin DEX is **not affiliated with Meteora** and does not claim endorsement by Meteora. References to third-party protocols and designs are for educational context and interoperability.
 
@@ -237,7 +237,7 @@ Fee accounting must remain correct for:
 ### 6.1 Two-sided allocation model
 Let:
 - `b0` be the center bin (typically the active bin at deposit time)
-- `d` be distance from center in bins, `d = |binId - b0|`
+- `d` be the absolute distance from center in bins, `d = |binId - b0|`
 - left side bins have `binId < b0` (indexed by `d = 1..NL` as `b0 - d`), right side bins have `binId > b0` (indexed by `d = 1..NR` as `b0 + d`)
 
 **V1 rule (no active-bin deposits):**
@@ -253,7 +253,7 @@ The protocol:
 3) converts weights into exact token amounts  
 4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights.  
    Bin order is by increasing distance from center within each side.  
-   Tie-breaker: when fractional weights tie, allocate to all tied left bins starting from the closest bin to center (`d = 1..NL`), then to any tied right bins starting from the closest bin to center (`d = 1..NR`).  
+   Tie-breaker: when fractional weights tie, distribute remainder one unit at a time to tied left bins starting from the closest bin to center (`d = 1..NL`), then to tied right bins starting from the closest bin to center (`d = 1..NR`).  
 5) writes liquidity to bins and updates the position
 
 **Allocation-time only:** liquidity never reshapes after deposit. Changing distribution requires a new position or withdraw+redeposit.
