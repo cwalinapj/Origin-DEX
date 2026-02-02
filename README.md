@@ -145,7 +145,12 @@ Parameterized functions allow:
 - a small set of safe “function families” that still feels unlimited to users
 
 ### 6.3 V1 function families (initial)
-V1 aims to ship a minimal set that still covers most practical distributions:
+V1 aligns its initial presets with the **DIM profile** shapes seen in Meteora's DLMM:
+- **Spot (balanced):** flat weights across bins (`meteora_spot`)
+- **Curve (bell):** center-heavy Gaussian-style weights (`meteora_curve`)
+- **BidAsk (U-curve):** edge-heavy distribution (`meteora_bidask`)
+
+Additional parameterized families remain available:
 - **Exponential decay:** `w(d) = r^d`
 - **Power decay:** `w(d) = 1 / (d + c)^p`
 - **Wall + decay:** constant for `d <= k`, then decay
