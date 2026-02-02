@@ -1,9 +1,9 @@
 # Origin DEX — Whitepaper v0.1
 **Status:** Public draft (v0.1)  
 **Network:** Solana  
-**Launch approach:** V1 ships only what must work. Everything else is roadmap.
+**Launch posture:** V1 ships only what must work. Everything else is roadmap.
 
-## Read This First
+## 0) Read This First
 This whitepaper accompanies the initial Origin DEX deployment. It provides:
 - a precise description of what V1 ships
 - a roadmap of what we want to build later
@@ -114,9 +114,7 @@ An LP position records:
 - a strategy record (strategy id + params hash) for reproducibility
 
 ### 5.3 Fees
-Swaps pay fees which accrue to LPs.
-
-Fee accounting must remain correct for:
+Swaps pay fees which accrue to LPs. Fee accounting must remain correct for:
 - multi-bin swaps
 - multiple LPs per bin
 - partial fills
