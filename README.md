@@ -25,6 +25,23 @@ Output is written to `build/index.html`. Use `make clean` to remove it.
 
 ---
 
+## V1 (Devnet) Quickstart
+
+**Network:** Solana Devnet  
+**V1 scope:** single pool only (wSOL / Circle devnet USDC) + function-based LP allocation
+
+### Circle Devnet USDC
+Mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+
+### 1) Create a devnet wallet + fund it (macOS)
+```bash
+chmod +x scripts/setup_devnet_wallet_macos_v2.sh
+TARGET_SOL=2 AIRDROP_CHUNK=1 TARGET_USDC=40 ./scripts/setup_devnet_wallet_macos_v2.sh
+```
+`chmod` only needs to be run once per machine. This script is intended for macOS; other platforms may need a similar flow.
+
+---
+
 ## 1) Summary
 Origin DEX is a standalone Solana DEX based on **bin liquidity** and one differentiator:
 
