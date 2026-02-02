@@ -3,6 +3,20 @@
 **Network:** Solana  
 **Launch posture:** V1 ships what must work. Everything else is roadmap.
 
+
+root1@P-Mk-Pro meteora-devnet % node seed_liquidity.cjs
+User: 14ToUhE8e88JLu8Jhdvn9iTdqwY4yW9CybQP55BgtK7q
+Pair: BL9k1nsrBxYtYQMxHy6HdcbLLjHLHShrQvrr2DuWaRXZ
+tokenX mint: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+tokenY mint: So11111111111111111111111111111111111111112
+activeId: 703
+Detected ordering: X=USDC, Y=wSOL
+Creating position: EgBuD1vGp5GnuhMe6jQkCgfWP29E6s7xrp1LKockRQtB
+Range: 693 → 713
+✅ LP position created + liquidity added
+Signature: 4voRDD1jirycuTmdYH1Zfmfh2m49cqPEBMg9xHhZSync2s7JdXd6TbacCfSTzRhAkvY8kvGP883qXy2dmxYjGWDk
+Position: EgBuD1vGp5GnuhMe6jQkCgfWP29E6s7xrp1LKockRQtB
+
 ---
 
 ## 0) Read This First
