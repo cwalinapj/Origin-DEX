@@ -37,7 +37,7 @@ Per epoch (EpochVaultSummary) — ONE write per epoch
 Off-chain jobs (keeper)
 	•	Each epoch, a keeper:
 	1.	loads all currently staked positions
-	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source. For V1, the price source is the pool spot mid price at the snapshot slot recorded in EpochVaultSummary. The spot mid price is the midpoint price implied by the active bin.
+	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source. For V1, the price source is the pool spot mid price (the midpoint price implied by the active bin) at the snapshot slot recorded in EpochVaultSummary.
 	3.	sums to vault_total_value_quote
 	4.	submits one tx: EpochVaultSummary(...)
 	•	UI can still compute per-position value “now” on demand for any wallet/position.
@@ -240,7 +240,7 @@ Let:
 - `d` be distance from center in bins, `d = |binId - b0|`
 
 **V1 rule (no active-bin deposits):**
-- Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on each side (V1 rejects instructions attempting `d = 0`).
+- Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on the left side (`d = 1..NL`) and right side (`d = 1..NR`) (V1 rejects instructions attempting `d = 0`).
 
 LP defines two parameterized functions:
 - left side: `wL(d) = fL(d; θL)` for `d = 1..NL`
@@ -251,7 +251,7 @@ The protocol:
 2) normalizes weights across all bins so total weight sums to 1  
 3) converts weights into exact token amounts  
 4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights.  
-   Tie-breaker: when fractional weights tie, allocate to left bins in ascending distance (`d = 1..NL`), then to right bins in ascending distance (`d = 1..NR`).  
+   Tie-breaker: when fractional weights tie, allocate to left bins starting from the closest bin to center (`d = 1..NL`), then to right bins starting from the closest bin to center (`d = 1..NR`).  
 5) writes liquidity to bins and updates the position
 
 **Allocation-time only:** liquidity never reshapes after deposit. Changing distribution requires a new position or withdraw+redeposit.
