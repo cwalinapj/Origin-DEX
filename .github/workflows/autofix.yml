@@ -22,7 +22,6 @@ jobs:
 
       - run: npm ci
 
-      # Replace these with your actual commands
       - run: npm run format
       - run: npm run lint -- --fix
 
