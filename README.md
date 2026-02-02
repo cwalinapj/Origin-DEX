@@ -36,7 +36,7 @@ TARGET_SOL=2 AIRDROP_CHUNK=1 TARGET_USDC=40 ./scripts/setup_devnet_wallet_macos_
 `chmod` only needs to be run once per machine. This script is intended for macOS; other platforms may need a similar flow.
 
 ## 1) Summary
-Origin DEX is a standalone Solana DEX based on **bin liquidity** and offers one differentiator:
+Origin DEX is a standalone Solana DEX based on **bin liquidity** and one differentiator:
 
 > **Function-based, two-sided bin allocation at LP deposit time.**
 
@@ -248,7 +248,7 @@ This keeps accounting simple and prevents hidden state changes.
 ### 9.4 Security invariants (V1)
 - mode_registry changes cannot move funds (only blocks new activity)
 - Immutable money core: collateral_vault and session_escrow are not upgradeable
-- Objective claims only (no subjective adjudication in V1)
+- Objective claims only (no subjective adjudication in v1)
 - Payment mint == collateral mint == insurance mint per session
 - Provider cannot withdraw without valid permit
 - Permits are one-time (nonce tracking)
