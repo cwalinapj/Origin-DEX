@@ -3,6 +3,36 @@
 **Network:** Solana  
 **Launch posture:** V1 ships what must work. Everything else is roadmap.
 
+Curve Presets (GUI) + Param API (Origin OS)
+
+The DEX exposes a single deterministic distribution engine that converts deposits into per-bin liquidity allocations. Humans use picture-based presets in the GUI (V/U/Walls/Bowl/etc). The Origin OS / LAM uses an API param object that maps to the same preset engine.
+
+Core idea
+	1.	Convert bin distance to normalized input: x = (d - 1) / (maxD - 1) where d = |binId - activeId| and d=0 (active bin) is forbidden.
+	2.	Evaluate a normalized curve f(x) ∈ [0,1].
+	3.	Convert to weight: weight(d) = base + amp * f(x), with weight(0)=0.
+	4.	Normalize weights into exact token amounts, using a deterministic remainder rule.
+
+Supported curve families
+
+Each family produces f(x) in [0,1]:
+	•	power: f(x)=x^p (p controls “U-ness”; larger p = heavier tails)
+	•	exp: f(x)=expm1(kx)/expm1(k) (k controls “wall strength”)
+	•	log: f(x)=log1p(ax)/log1p(a) (a controls “center heaviness”)
+	•	sigmoid: normalized logistic curve (k=steepness, m=midpoint)
+
+Presets
+
+GUI presets are just named parameter sets (picture cards). Example mapping:
+	•	“U / Bowl” → { type:"power", p:2.5, base:1, amp:120 }
+	•	“Hard Walls” → { type:"exp", k:10, base:1, amp:200 }
+	•	“Soft Bowl” → { type:"log", a:15, base:1, amp:80 }
+	•	“Delayed Wall” → { type:"sigmoid", k:12, m:0.65, base:1, amp:200 }
+
+API contract (Origin OS)
+
+The LAM calls the distribution endpoint with params; backend returns xYAmountDistribution:
+
 
 root1@P-Mk-Pro meteora-devnet % node seed_liquidity.cjs
 User: 14ToUhE8e88JLu8Jhdvn9iTdqwY4yW9CybQP55BgtK7q
