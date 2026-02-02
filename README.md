@@ -4,11 +4,11 @@
 **Launch posture:** V1 ships what must work. Everything else is roadmap.
 
 ## 0) Read This First
-This whitepaper accompanies the initial Origin DEX deployment. It provides:
-- a precise description of what V1 ships
-- a roadmap of what we want to build later
+This whitepaper is published alongside the initial Origin DEX deployment. It provides:
+- a **precise description** of what V1 ships
+- a **roadmap** of what we want to build later
 
-V1 is intentionally narrow. We will not ship optional complexity (token, incentives, margin, bridging, cross-chain routing, governance) until the base DEX is proven safe and reliable.
+**V1 is intentionally narrow.** We will not ship optional complexity (token, incentives, margin, bridging, cross-chain routing, governance) until the base DEX is proven safe and reliable.
 
 Nothing in this document should be interpreted as an entitlement to future distributions, rewards, or token allocations.
 
