@@ -238,7 +238,7 @@ Fee accounting must remain correct for:
 Let:
 - `b0` be the center bin (typically the active bin at deposit time)
 - `d` be distance from center in bins, `d = |binId - b0|`
-- left side bins have `binId < b0`, right side bins have `binId > b0`
+- left side bins have `binId < b0` (indexed by `d = 1..NL` as `b0 - d`), right side bins have `binId > b0` (indexed by `d = 1..NR` as `b0 + d`)
 
 **V1 rule (no active-bin deposits):**
 - Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on the left side (`d = 1..NL`) and right side (`d = 1..NR`).
@@ -253,7 +253,7 @@ The protocol:
 3) converts weights into exact token amounts  
 4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights.  
    Bin order is by increasing distance from center within each side.  
-   Tie-breaker: when fractional weights tie, allocate to left bins starting from the closest bin to center (`d = 1..NL`), then to right bins starting from the closest bin to center (`d = 1..NR`).  
+   Tie-breaker: when fractional weights tie, allocate to all tied left bins starting from the closest bin to center (`d = 1..NL`), then to any tied right bins starting from the closest bin to center (`d = 1..NR`).  
 5) writes liquidity to bins and updates the position
 
 **Allocation-time only:** liquidity never reshapes after deposit. Changing distribution requires a new position or withdraw+redeposit.
