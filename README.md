@@ -37,7 +37,7 @@ Per epoch (EpochVaultSummary) — ONE write per epoch
 Off-chain jobs (keeper)
 	•	Each epoch, a keeper:
 	1.	loads all currently staked positions
-	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source (V1 uses spot mid from the pool at the snapshot slot)
+	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source (V1 uses the pool spot mid price, i.e., the midpoint price implied by the active bin at the snapshot slot recorded in EpochVaultSummary)
 	3.	sums to vault_total_value_quote
 	4.	submits one tx: EpochVaultSummary(...)
 	•	UI can still compute per-position value “now” on demand for any wallet/position.
@@ -253,7 +253,7 @@ The protocol:
 1) computes per-bin weights from the functions  
 2) normalizes weights across all bins so total weight sums to 1  
 3) converts weights into exact token amounts  
-4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights (ties break by bin order: left `d=1..NL`, then right `d=1..NR`)  
+4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights (ties break by bin order: left bins in ascending `d=1..NL`, then right bins in ascending `d=1..NR`)  
 5) writes liquidity to bins and updates the position
 
 **Allocation-time only:** liquidity never reshapes after deposit. Changing distribution requires a new position or withdraw+redeposit.
@@ -267,7 +267,7 @@ Parameterized functions allow:
 ### 6.3 V1 function families (initial)
 V1 aligns its initial presets with the **DIM profile** shapes seen in Meteora's DLMM:
 - **Spot (balanced):** flat weights across bins (`meteora_spot`)
-- **Curve (bell):** center-heavy curve weights (`meteora_curve`)
+- **Curve (bell):** center-heavy Gaussian-style weights (`meteora_curve`)
 - **BidAsk (U-curve):** edge-heavy distribution (`meteora_bidask`)
 
 Additional parameterized families remain available:
