@@ -1,4 +1,4 @@
-name: autofix
+name: validate
 
 on:
   pull_request:
