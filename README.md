@@ -114,9 +114,7 @@ An LP position records:
 - a strategy record (strategy id + params hash) for reproducibility
 
 ### 5.3 Fees
-Swaps pay fees which accrue to LPs.
-
-Fee accounting must remain correct for:
+Swaps pay fees which accrue to LPs. Fee accounting must remain correct for:
 - multi-bin swaps
 - multiple LPs per bin
 - partial fills
