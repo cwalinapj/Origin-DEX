@@ -3,7 +3,7 @@
 **Network:** Solana  
 **Launch posture:** V1 ships only what must work. Everything else is roadmap.
 
-## Read this first
+## Read This First
 This whitepaper accompanies the initial Origin DEX deployment. It provides:
 - a precise description of what V1 ships
 - a roadmap of what we want to build later
@@ -73,11 +73,11 @@ Origin DEX is **not affiliated with Meteora** and does not claim endorsement by 
 ## 4) What Ships in V1
 ### 4.1 V1 is a standalone DEX (Solana)
 V1 ships a complete bin-based spot DEX:
-- create pool
-- add liquidity
-- swap
-- remove liquidity
-- claim fees
+- Create pool
+- Add liquidity
+- Swap
+- Remove liquidity
+- Claim fees
 
 ### 4.2 V1 differentiator: function-based LP allocation
 LPs choose two functions (left / right) plus parameters and ranges.
@@ -244,13 +244,13 @@ These are protocol rules designed to keep execution safe and predictable.
 This keeps accounting simple and prevents hidden state changes.
 
 ### 9.4 Security invariants (V1)
-- mode_registry changes cannot move funds (only blocks new activity)
-- immutable money core: collateral_vault and session_escrow are not upgradeable
-- objective claims only (no subjective adjudication in V1)
-- payment mint == collateral mint == insurance mint per session
-- provider cannot withdraw without valid permit
-- permits are one-time (nonce tracking)
-- reserved collateral backs all active sessions
+- Mode registry changes cannot move funds (only blocks new activity)
+- Immutable money core: collateral_vault and session_escrow are not upgradeable
+- Objective claims only (no subjective adjudication in V1)
+- Payment mint == collateral mint == insurance mint per session
+- Provider cannot withdraw without valid permit
+- Permits are one-time (nonce tracking)
+- Reserved collateral backs all active sessions
 
 ## 10) “Open LP Positions Easily” (Developer + User Simplicity)
 V1 is designed so anyone can open LP positions with minimal friction:
