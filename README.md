@@ -37,7 +37,7 @@ Per epoch (EpochVaultSummary) — ONE write per epoch
 Off-chain jobs (keeper)
 	•	Each epoch, a keeper:
 	1.	loads all currently staked positions
-	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source
+	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source. For V1, the price source is the pool spot mid price at the snapshot slot recorded in EpochVaultSummary. The spot mid price is the midpoint price implied by the active bin.
 	3.	sums to vault_total_value_quote
 	4.	submits one tx: EpochVaultSummary(...)
 	•	UI can still compute per-position value “now” on demand for any wallet/position.
@@ -169,6 +169,7 @@ Origin DEX aims for a middle path:
 Bin-style liquidity AMMs and discretized liquidity designs have been explored across DeFi.
 
 On Solana specifically, Origin DEX acknowledges the influence of **Meteora’s DLMM** as prior art that helped validate bin-based liquidity as a practical market structure on Solana.
+V1 implementation begins by forking DLMM-style components (bin-based AMM structure and fee accounting) and then extending allocation to parameterized two-sided functions.
 
 Origin DEX is **not affiliated with Meteora** and does not claim endorsement by Meteora. References to third-party protocols and designs are for educational context and interoperability.
 
@@ -211,7 +212,10 @@ Price space is discretized into bins. Each bin holds:
 
 Swaps move through bins to fill the requested size.
 
-### 5.2 Positions
+### 5.2 wSOL (Wrapped SOL)
+wSOL is the SPL-token representation of SOL. It exists so SOL can be handled by token programs and AMMs that operate on SPL tokens. Native SOL remains in lamports; wrapping/unwrapping uses the token program’s native mint mechanics.
+
+### 5.3 Positions
 An LP position records:
 - owner
 - the set/range of bins touched
@@ -219,7 +223,7 @@ An LP position records:
 - fee checkpoints for accurate claiming
 - a strategy record (strategy id + params hash) for reproducibility
 
-### 5.3 Fees
+### 5.4 Fees
 Swaps pay fees which accrue to LPs.
 Fee accounting must remain correct for:
 - multi-bin swaps
@@ -233,18 +237,26 @@ Fee accounting must remain correct for:
 ### 6.1 Two-sided allocation model
 Let:
 - `b0` be the center bin (typically the active bin at deposit time)
-- `d` be distance from center in bins
+- `d` be the absolute distance from center in bins, `d = |binId - b0|`
+- left side bins have `binId < b0` (indexed by `d = 1..NL` as `b0 - d`), right side bins have `binId > b0` (indexed by `d = 1..NR` as `b0 + d`)
+
+**V1 rule (no active-bin deposits):**
+- Active bin (`d = 0`) deposits are forbidden; allocation begins at `d = 1` on the left side (`d = 1..NL`) and right side (`d = 1..NR`).
 
 LP defines two parameterized functions:
 - left side: `wL(d) = fL(d; θL)` for `d = 1..NL`
 - right side: `wR(d) = fR(d; θR)` for `d = 1..NR`
 
 The protocol:
-1) computes weights per bin from the functions  
-2) normalizes weights  
-3) allocates deposit amounts across bins deterministically  
-4) applies deterministic rounding and remainder placement rules  
+1) computes per-bin weights from the functions  
+2) normalizes weights across all bins so total weight sums to 1  
+3) converts weights into exact token amounts  
+4) applies deterministic rounding: floor each amount, then distribute the remainder to bins with the largest fractional weights.  
+   Bin order is by increasing distance from center within each side.  
+   Tie-breaker: when fractional weights tie, distribute remainder one unit at a time to tied left bins starting from the closest bin to center (`d = 1..NL`), then to tied right bins starting from the closest bin to center (`d = 1..NR`).  
 5) writes liquidity to bins and updates the position
+
+**Allocation-time only:** liquidity never reshapes after deposit. Changing distribution requires a new position or withdraw+redeposit.
 
 ### 6.2 Why parameterized functions
 Parameterized functions allow:
@@ -277,26 +289,17 @@ These are protocol rules designed to keep execution safe and predictable.
 ### 7.1 Bounded deposits
 - `NL + NR <= MAX_BINS_PER_DEPOSIT`
 - optional minimum per-bin threshold to prevent “dust spraying”
-- deterministic rounding and remainder handling
+- deterministic rounding and remainder placement (defined in 6.1)
 
 ### 7.2 Bounded swaps
 - swaps are capped by `MAX_BINS_PER_SWAP`
-- if a swap would exceed this bound, it fails fast (or follows explicitly-defined partial-fill behavior if implemented)
+- if a swap would exceed this bound, it fails fast (V1)
 
 ### 7.3 No reshaping rule
 - allocations do not change in-place after deposit
 - modifying a distribution requires opening a new position or withdrawing/redepositing
 
 This keeps accounting simple and prevents hidden state changes.
-
-### 7.4 Security invariants (V1)
-- mode_registry changes cannot move funds (only blocks new activity)
-- Immutable money core: collateral_vault and session_escrow are not upgradeable
-- Objective claims only (no subjective adjudication in v1)
-- Payment mint == collateral mint == insurance mint per session
-- Provider cannot withdraw without valid permit
-- Permits are one-time (nonce tracking)
-- Reserved collateral backs all active sessions
 
 ---
 
