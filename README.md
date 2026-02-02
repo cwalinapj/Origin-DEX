@@ -114,7 +114,9 @@ An LP position records:
 - a strategy record (strategy id + params hash) for reproducibility
 
 ### 5.3 Fees
-Swaps pay fees which accrue to LPs. Fee accounting must remain correct for:
+Swaps pay fees which accrue to LPs.
+
+Fee accounting must remain correct for:
 - multi-bin swaps
 - multiple LPs per bin
 - partial fills
@@ -244,7 +246,7 @@ These are protocol rules designed to keep execution safe and predictable.
 This keeps accounting simple and prevents hidden state changes.
 
 ### 9.4 Security invariants (V1)
-- Mode registry changes cannot move funds (only blocks new activity)
+- mode_registry changes cannot move funds (only blocks new activity)
 - Immutable money core: collateral_vault and session_escrow are not upgradeable
 - Objective claims only (no subjective adjudication in V1)
 - Payment mint == collateral mint == insurance mint per session
