@@ -1,107 +1,14 @@
 # Origin DEX — Whitepaper v0.1
 **Status:** Public draft (v0.1)  
 **Network:** Solana  
-**Launch posture:** V1 ships what must work. Everything else is roadmap.
+**Launch posture:** V1 ships only what must work. Everything else is roadmap.
 
-Optional LP NFT Staking + Accounting Model (V1)
+## Read this first
+This whitepaper accompanies the initial Origin DEX deployment. It provides:
+- a precise description of what V1 ships
+- a roadmap of what we want to build later
 
-Two modes
-	•	Unstaked (default): user keeps custody of the LP NFT/position. UI computes “value now” on-demand (same idea as Orca/Raydium: read position + pool/oracle state → compute). No on-chain writes needed.
-	•	Staked (optional): user deposits the LP NFT/position into an escrow vault controlled by our program. This mode enables immutable deposit/withdraw receipts + vault-level accounting for reviewers.
-
-What we record on-chain (minimal + immutable)
-
-Per stake (StakeRecord)
-	•	staker_pubkey
-	•	position_pubkey (or NFT mint / position account)
-	•	deposit_slot/time
-	•	function_params_hash (or full params if small)
-	•	deposit_value_quote (e.g., USDC microunits or SOL lamports)
-	•	(optional) deposit_amounts_x/y
-
-Per unstake (UnstakeRecord)
-	•	withdraw_slot/time
-	•	withdraw_value_quote
-	•	(optional) withdraw_amounts_x/y
-	•	Duration is derived: withdraw_time - deposit_time
-
-Per epoch (EpochVaultSummary) — ONE write per epoch
-	•	epoch_number
-	•	snapshot_slot/time
-	•	vault_total_value_quote (sum of staked vault positions only)
-	•	position_count
-	•	(optional) safe aggregates like median, p95, top10_share
-
-✅ We do not store per-position values each epoch (avoids making an easy indexed leaderboard + keeps fees tiny).
-
-Off-chain jobs (keeper)
-	•	Each epoch, a keeper:
-	1.	loads all currently staked positions
-	2.	computes each position value from public on-chain state (amounts/liquidity/fees) + price source
-	3.	sums to vault_total_value_quote
-	4.	submits one tx: EpochVaultSummary(...)
-	•	UI can still compute per-position value “now” on demand for any wallet/position.
-
-UI expectations
-	•	My Positions: unstaked positions (value live), button: “Stake to Vault” (optional)
-	•	My Vault: staked positions, shows deposit/withdraw receipts + duration
-	•	Vault Accounting: chart/table from EpochVaultSummary, plus Print/Export receipts
-
-⸻
-
-
-Curve Presets (GUI) + Param API (Origin OS)
-
-The DEX exposes a single deterministic distribution engine that converts deposits into per-bin liquidity allocations. Humans use picture-based presets in the GUI (V/U/Walls/Bowl/etc). The Origin OS / LAM uses an API param object that maps to the same preset engine.
-
-Core idea
-	1.	Convert bin distance to normalized input: x = (d - 1) / (maxD - 1) where d = |binId - activeId| and d=0 (active bin) is forbidden.
-	2.	Evaluate a normalized curve f(x) ∈ [0,1].
-	3.	Convert to weight: weight(d) = base + amp * f(x), with weight(0)=0.
-	4.	Normalize weights into exact token amounts, using a deterministic remainder rule.
-
-Supported curve families
-
-Each family produces f(x) in [0,1]:
-	•	power: f(x)=x^p (p controls “U-ness”; larger p = heavier tails)
-	•	exp: f(x)=expm1(kx)/expm1(k) (k controls “wall strength”)
-	•	log: f(x)=log1p(ax)/log1p(a) (a controls “center heaviness”)
-	•	sigmoid: normalized logistic curve (k=steepness, m=midpoint)
-
-Presets
-
-GUI presets are just named parameter sets (picture cards). Example mapping:
-	•	“U / Bowl” → { type:"power", p:2.5, base:1, amp:120 }
-	•	“Hard Walls” → { type:"exp", k:10, base:1, amp:200 }
-	•	“Soft Bowl” → { type:"log", a:15, base:1, amp:80 }
-	•	“Delayed Wall” → { type:"sigmoid", k:12, m:0.65, base:1, amp:200 }
-
-API contract (Origin OS)
-
-The LAM calls the distribution endpoint with params; backend returns xYAmountDistribution:
-
-
-root1@P-Mk-Pro meteora-devnet % node seed_liquidity.cjs
-User: 14ToUhE8e88JLu8Jhdvn9iTdqwY4yW9CybQP55BgtK7q
-Pair: BL9k1nsrBxYtYQMxHy6HdcbLLjHLHShrQvrr2DuWaRXZ
-tokenX mint: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
-tokenY mint: So11111111111111111111111111111111111111112
-activeId: 703
-Detected ordering: X=USDC, Y=wSOL
-Creating position: EgBuD1vGp5GnuhMe6jQkCgfWP29E6s7xrp1LKockRQtB
-Range: 693 → 713
-✅ LP position created + liquidity added
-Signature: 4voRDD1jirycuTmdYH1Zfmfh2m49cqPEBMg9xHhZSync2s7JdXd6TbacCfSTzRhAkvY8kvGP883qXy2dmxYjGWDk
-Position: EgBuD1vGp5GnuhMe6jQkCgfWP29E6s7xrp1LKockRQtB
-
----
-
-## 0) Read This First
-This whitepaper is published alongside the initial Origin DEX deployment. It contains:
-- a **precise description of what V1 ships**
-- a **roadmap of what we want to build later**
-
-**V1 is intentionally narrow.** We will not ship optional complexity (token, incentives, margin, bridging, cross-chain routing, governance) until the base DEX is proven safe and reliable.
+V1 is intentionally narrow. We will not ship optional complexity (token, incentives, margin, bridging, cross-chain routing, governance) until the base DEX is proven safe and reliable.
 
 Nothing in this document should be interpreted as an entitlement to future distributions, rewards, or token allocations.
 
@@ -114,10 +21,7 @@ make build
 
 Output is written to `build/index.html`. Use `make clean` to remove it.
 
----
-
 ## V1 (Devnet) Quickstart
-
 **Network:** Solana Devnet  
 **V1 scope:** single pool only (wSOL / Circle devnet USDC) + function-based LP allocation
 
@@ -131,14 +35,12 @@ TARGET_SOL=2 AIRDROP_CHUNK=1 TARGET_USDC=40 ./scripts/setup_devnet_wallet_macos_
 ```
 `chmod` only needs to be run once per machine. This script is intended for macOS; other platforms may need a similar flow.
 
----
-
 ## 1) Summary
-Origin DEX is a standalone Solana DEX based on **bin liquidity** and one differentiator:
+Origin DEX is a standalone Solana DEX based on **bin liquidity** with one differentiator:
 
 > **Function-based, two-sided bin allocation at LP deposit time.**
 
-Liquidity providers choose a **left** and **right** parameterized function that controls how their deposit is distributed across bins around the active price. The protocol converts the function output into a deterministic per-bin allocation.
+Liquidity providers choose a left and right parameterized function that controls how their deposit is distributed across bins around the active price. The protocol converts the function output into a deterministic per-bin allocation.
 
 The functions are used **only during allocation**. After allocation:
 - liquidity does not reshape itself
@@ -151,19 +53,15 @@ V1 provides:
 - claiming fees
 - function-based LP allocation (two-sided functions)
 
----
-
 ## 2) Motivation
 Liquidity placement is one of the most important levers in AMMs. Many designs either:
-- restrict placement to a few “preset” distributions, or
+- restrict placement to a few preset distributions, or
 - expose too much expressiveness in ways that are difficult to simulate, audit, and keep safe.
 
 Origin DEX aims for a middle path:
 - **high expressiveness** (infinite shapes via parameterization)
 - **bounded complexity** (hard caps on bins touched and bins traversed)
 - **deterministic behavior** (audit-friendly and simulation-friendly)
-
----
 
 ## 3) Acknowledgements & Prior Art
 Bin-style liquidity AMMs and discretized liquidity designs have been explored across DeFi.
@@ -172,16 +70,14 @@ On Solana specifically, Origin DEX acknowledges the influence of **Meteora’s D
 
 Origin DEX is **not affiliated with Meteora** and does not claim endorsement by Meteora. References to third-party protocols and designs are for educational context and interoperability.
 
----
-
 ## 4) What Ships in V1
 ### 4.1 V1 is a standalone DEX (Solana)
 V1 ships a complete bin-based spot DEX:
-- Create pool
-- Add liquidity
-- Swap
-- Remove liquidity
-- Claim fees
+- create pool
+- add liquidity
+- swap
+- remove liquidity
+- claim fees
 
 ### 4.2 V1 differentiator: function-based LP allocation
 LPs choose two functions (left / right) plus parameters and ranges.
@@ -199,8 +95,6 @@ V1 does **not** ship:
 - margin, leverage, shorting
 - cross-chain routing/bridging
 - managed vaults or automated rebalancing
-
----
 
 ## 5) Core Concepts
 ### 5.1 Bins
@@ -220,14 +114,11 @@ An LP position records:
 - a strategy record (strategy id + params hash) for reproducibility
 
 ### 5.3 Fees
-Swaps pay fees which accrue to LPs.
-Fee accounting must remain correct for:
+Swaps pay fees which accrue to LPs. Fee accounting must remain correct for:
 - multi-bin swaps
 - multiple LPs per bin
 - partial fills
 - repeated fee claims
-
----
 
 ## 6) Function-Based Allocation Design
 ### 6.1 Two-sided allocation model
@@ -269,38 +160,99 @@ These families can express:
 - wall+curve behaviors
 - asymmetric left/right placement
 
----
+## 7) Curve Presets (GUI) + Param API (Origin OS)
+The DEX exposes a single deterministic distribution engine that converts deposits into per-bin liquidity allocations. Humans use picture-based presets in the GUI (V/U/Walls/Bowl/etc). The Origin OS / LAM uses an API param object that maps to the same preset engine.
 
-## 7) V1 Safety Rails (Bounded Complexity)
+### Core idea
+1. Convert bin distance to normalized input: `x = (d - 1) / (maxD - 1)` where `d = |binId - activeId|` and `d=0` (active bin) is forbidden.
+2. Evaluate a normalized curve `f(x) ∈ [0,1]`.
+3. Convert to weight: `weight(d) = base + amp * f(x)`, with `weight(0)=0`.
+4. Normalize weights into exact token amounts, using a deterministic remainder rule.
+
+### Supported curve families
+Each family produces `f(x)` in [0,1]:
+- power: `f(x)=x^p` (p controls “U-ness”; larger p = heavier tails)
+- exp: `f(x)=expm1(kx)/expm1(k)` (k controls “wall strength”)
+- log: `f(x)=log1p(ax)/log1p(a)` (a controls “center heaviness”)
+- sigmoid: normalized logistic curve (k=steepness, m=midpoint)
+
+### Preset mapping examples
+- “U / Bowl” → `{ type:"power", p:2.5, base:1, amp:120 }`
+- “Hard Walls” → `{ type:"exp", k:10, base:1, amp:200 }`
+- “Soft Bowl” → `{ type:"log", a:15, base:1, amp:80 }`
+- “Delayed Wall” → `{ type:"sigmoid", k:12, m:0.65, base:1, amp:200 }`
+
+## 8) Optional LP NFT Staking + Accounting Model (V1)
+### Two modes
+- **Unstaked (default):** user keeps custody of the LP NFT/position. UI computes “value now” on-demand (same idea as Orca/Raydium: read position + pool/oracle state → compute). No on-chain writes needed.
+- **Staked (optional):** user deposits the LP NFT/position into an escrow vault controlled by our program. This mode enables immutable deposit/withdraw receipts + vault-level accounting for reviewers.
+
+### What we record on-chain (minimal + immutable)
+**Per stake (StakeRecord)**
+- staker_pubkey
+- position_pubkey (or NFT mint / position account)
+- deposit_slot/time
+- function_params_hash (or full params if small)
+- deposit_value_quote (e.g., USDC microunits or SOL lamports)
+- (optional) deposit_amounts_x/y
+
+**Per unstake (UnstakeRecord)**
+- withdraw_slot/time
+- withdraw_value_quote
+- (optional) withdraw_amounts_x/y
+- Duration is derived: withdraw_time - deposit_time
+
+**Per epoch (EpochVaultSummary) — ONE write per epoch**
+- epoch_number
+- snapshot_slot/time
+- vault_total_value_quote (sum of staked vault positions only)
+- position_count
+- (optional) safe aggregates like median, p95, top10_share
+
+✅ We do not store per-position values each epoch (avoids making an easy indexed leaderboard + keeps fees tiny).
+
+### Off-chain jobs (keeper)
+Each epoch, a keeper:
+1. loads all currently staked positions
+2. computes each position value from public on-chain state (amounts/liquidity/fees) + price source
+3. sums to vault_total_value_quote
+4. submits one tx: `EpochVaultSummary(...)`
+
+UI can still compute per-position value “now” on demand for any wallet/position.
+
+### UI expectations
+- My Positions: unstaked positions (value live), button: “Stake to Vault” (optional)
+- My Vault: staked positions, shows deposit/withdraw receipts + duration
+- Vault Accounting: chart/table from `EpochVaultSummary`, plus Print/Export receipts
+
+## 9) V1 Safety Rails (Bounded Complexity)
 These are protocol rules designed to keep execution safe and predictable.
 
-### 7.1 Bounded deposits
+### 9.1 Bounded deposits
 - `NL + NR <= MAX_BINS_PER_DEPOSIT`
 - optional minimum per-bin threshold to prevent “dust spraying”
 - deterministic rounding and remainder handling
 
-### 7.2 Bounded swaps
+### 9.2 Bounded swaps
 - swaps are capped by `MAX_BINS_PER_SWAP`
 - if a swap would exceed this bound, it fails fast (or follows explicitly-defined partial-fill behavior if implemented)
 
-### 7.3 No reshaping rule
+### 9.3 No reshaping rule
 - allocations do not change in-place after deposit
 - modifying a distribution requires opening a new position or withdrawing/redepositing
 
 This keeps accounting simple and prevents hidden state changes.
 
-### 7.4 Security invariants (V1)
+### 9.4 Security invariants (V1)
 - mode_registry changes cannot move funds (only blocks new activity)
-- Immutable money core: collateral_vault and session_escrow are not upgradeable
-- Objective claims only (no subjective adjudication in v1)
-- Payment mint == collateral mint == insurance mint per session
-- Provider cannot withdraw without valid permit
-- Permits are one-time (nonce tracking)
-- Reserved collateral backs all active sessions
+- immutable money core: collateral_vault and session_escrow are not upgradeable
+- objective claims only (no subjective adjudication in V1)
+- payment mint == collateral mint == insurance mint per session
+- provider cannot withdraw without valid permit
+- permits are one-time (nonce tracking)
+- reserved collateral backs all active sessions
 
----
-
-## 8) “Open LP Positions Easily” (Developer + User Simplicity)
+## 10) “Open LP Positions Easily” (Developer + User Simplicity)
 V1 is designed so anyone can open LP positions with minimal friction:
 - a basic UI flow with presets and parameter sliders
 - a small SDK interface to:
@@ -310,32 +262,28 @@ V1 is designed so anyone can open LP positions with minimal friction:
 
 The goal is to make “opening LPs” a simple action—while preserving safety bounds.
 
----
-
-## 9) Long-Term Vision (Very Wall Street)
+## 11) Long-Term Vision (Very Wall Street)
 Origin DEX is intended to evolve into market infrastructure that can support workflows traditionally associated with Wall Street: deeper market structures, sophisticated instruments, and eventually options-style exposure.
 
 This vision is aspirational and will be pursued in stages. Each stage must be safe, auditable, and operationally supportable.
 
 **V1 is spot-only.** Derivatives, margin, and leverage are explicitly out of scope for V1.
 
----
-
-## 10) Future Modules (Roadmap, Not Shipped in V1)
+## 12) Future Modules (Roadmap, Not Shipped in V1)
 This section describes things we want to build later. It is not a commitment to timeline, implementation, or final design.
 
-### 10.1 Governance / DAO (future)
+### 12.1 Governance / DAO (future)
 A governance system may be introduced to manage:
 - protocol parameters (fees, caps, whitelists)
 - strategy registry updates
 - emergency procedures
 
-### 10.2 Native token (future, optional)
+### 12.2 Native token (future, optional)
 A native token may be introduced to coordinate governance and ecosystem participation (contributors, community ops, aligned voters).
 
 V1 does not include any token distribution mechanism.
 
-### 10.3 Margin & shorting against LP positions (future, extremely conservative — V1.5+)
+### 12.3 Margin & shorting against LP positions (future, extremely conservative — V1.5+)
 A later release may introduce margin primitives where LP positions can be used as collateral.
 
 If shipped, it will be conservative by design:
@@ -348,14 +296,14 @@ If market depth for a borrowed asset falls, risk limits tighten. If debt becomes
 
 This module is not included in V1.
 
-### 10.4 Emergency backstop (future)
+### 12.4 Emergency backstop (future)
 If future modules introduce credit risk (e.g., margin lending), the protocol may use layered backstops:
 - insurance fund first
 - capped emergency mechanisms later
 
 Any such system would be published with explicit constraints and audited before activation.
 
-### 10.5 Managed strategies / vaults (future)
+### 12.5 Managed strategies / vaults (future)
 A managed layer may be added for users who want:
 - automated placement
 - rebalancing
@@ -363,13 +311,11 @@ A managed layer may be added for users who want:
 
 Not required for V1.
 
-### 10.6 Cross-chain routing / bridging (future)
+### 12.6 Cross-chain routing / bridging (future)
 Cross-chain execution introduces additional risk and complexity.
 Not required for V1.
 
----
-
-## 11) Risk Disclosure
+## 13) Risk Disclosure
 Origin DEX is experimental software. Risks include (non-exhaustive):
 - smart contract vulnerabilities
 - economic attacks and market manipulation
@@ -379,9 +325,7 @@ Origin DEX is experimental software. Risks include (non-exhaustive):
 
 V1 intentionally limits features to reduce risk and simplify verification.
 
----
-
-## 12) Appendix — V1 Implementation Checklist
+## 14) Appendix — V1 Implementation Checklist
 This appendix is a practical “ship list” for V1.
 
 ### Protocol (V1)
@@ -404,7 +348,5 @@ This appendix is a practical “ship list” for V1.
 - [ ] Allocation preview: deterministic output
 - [ ] Complexity estimate: bins touched + warnings
 - [ ] Instruction builder helpers
-
----
 
 > End of Origin DEX — Whitepaper v0.1
