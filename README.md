@@ -38,6 +38,7 @@ Mint: `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
 chmod +x scripts/setup_devnet_wallet_macos_v2.sh
 TARGET_SOL=2 AIRDROP_CHUNK=1 TARGET_USDC=40 ./scripts/setup_devnet_wallet_macos_v2.sh
 ```
+This script is intended for macOS; other platforms may need a similar flow.
 
 ---
 
