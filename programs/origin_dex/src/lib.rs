@@ -260,6 +260,62 @@ pub mod origin_dex {
 
         Ok(())
     }
+
+    pub fn add_liquidity_to_position(ctx: Context<AddLiquidityToPosition>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.position.pool, ctx.accounts.pool.key(), DexError::InvalidPosition);
+        require_keys_eq!(ctx.accounts.position.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::MintTo {
+                    mint: ctx.accounts.lp_mint.to_account_info(),
+                    to: ctx.accounts.owner_lp_token_account.to_account_info(),
+                    authority: ctx.accounts.position.to_account_info(),
+                },
+                &[&[
+                    b"position",
+                    ctx.accounts.pool.key().as_ref(),
+                    &ctx.accounts.position.position_id.to_le_bytes(),
+                    &[ctx.accounts.position.bump],
+                ]],
+            ),
+            1,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn close_position(ctx: Context<ClosePosition>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.position.pool, ctx.accounts.pool.key(), DexError::InvalidPosition);
+        require_keys_eq!(ctx.accounts.position.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+        if ctx.accounts.stake.active {
+            return err!(DexError::AlreadyStaked);
+        }
+
+        token::burn(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                token::Burn {
+                    mint: ctx.accounts.lp_mint.to_account_info(),
+                    from: ctx.accounts.owner_lp_token_account.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
+                },
+            ),
+            1,
+        )?;
+
+        token::close_account(CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            token::CloseAccount {
+                account: ctx.accounts.owner_lp_token_account.to_account_info(),
+                destination: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.owner.to_account_info(),
+            },
+        ))?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -424,7 +480,8 @@ pub struct UnstakeLpNft<'info> {
     #[account(
         mut,
         seeds = [b"stake", position.key().as_ref()],
-        bump = stake.bump
+        bump = stake.bump,
+        close = owner
     )]
     pub stake: Account<'info, Stake>,
 
@@ -439,6 +496,75 @@ pub struct UnstakeLpNft<'info> {
     pub owner_lp_token_account: Account<'info, TokenAccount>,
 
     pub lp_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct AddLiquidityToPosition<'info> {
+    pub pool: Account<'info, Pool>,
+    #[account(
+        mut,
+        seeds = [b"position", pool.key().as_ref(), &position.position_id.to_le_bytes()],
+        bump = position.bump
+    )]
+    pub position: Account<'info, Position>,
+
+    #[account(
+        mut,
+        seeds = [b"lp_mint", position.key().as_ref()],
+        bump
+    )]
+    pub lp_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = lp_mint,
+        associated_token::authority = owner
+    )]
+    pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct ClosePosition<'info> {
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [b"position", pool.key().as_ref(), &position.position_id.to_le_bytes()],
+        bump = position.bump,
+        close = owner
+    )]
+    pub position: Account<'info, Position>,
+
+    #[account(
+        mut,
+        seeds = [b"lp_mint", position.key().as_ref()],
+        bump
+    )]
+    pub lp_mint: Account<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = lp_mint,
+        associated_token::authority = owner
+    )]
+    pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [b"stake", position.key().as_ref()],
+        bump = stake.bump
+    )]
+    pub stake: Account<'info, Stake>,
 
     #[account(mut)]
     pub owner: Signer<'info>,

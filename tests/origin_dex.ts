@@ -105,6 +105,31 @@ describe("origin_dex", () => {
           { name: "tokenProgram", isMut: false, isSigner: false }
         ],
         args: []
+      },
+      {
+        name: "addLiquidityToPosition",
+        accounts: [
+          { name: "pool", isMut: false, isSigner: false },
+          { name: "position", isMut: true, isSigner: false },
+          { name: "lpMint", isMut: true, isSigner: false },
+          { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "owner", isMut: true, isSigner: true },
+          { name: "tokenProgram", isMut: false, isSigner: false }
+        ],
+        args: []
+      },
+      {
+        name: "closePosition",
+        accounts: [
+          { name: "pool", isMut: false, isSigner: false },
+          { name: "position", isMut: true, isSigner: false },
+          { name: "lpMint", isMut: true, isSigner: false },
+          { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "stake", isMut: true, isSigner: false },
+          { name: "owner", isMut: true, isSigner: true },
+          { name: "tokenProgram", isMut: false, isSigner: false }
+        ],
+        args: []
       }
     ]
   } as anchor.Idl;
@@ -518,6 +543,37 @@ describe("origin_dex", () => {
           owner: provider.wallet.publicKey
         }),
         lpMint,
+        owner: provider.wallet.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
+      })
+      .rpc();
+
+    await program.methods
+      .addLiquidityToPosition()
+      .accounts({
+        pool,
+        position,
+        lpMint,
+        ownerLpTokenAccount: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: provider.wallet.publicKey
+        }),
+        owner: provider.wallet.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
+      })
+      .rpc();
+
+    await program.methods
+      .closePosition()
+      .accounts({
+        pool,
+        position,
+        lpMint,
+        ownerLpTokenAccount: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: provider.wallet.publicKey
+        }),
+        stake,
         owner: provider.wallet.publicKey,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
       })
