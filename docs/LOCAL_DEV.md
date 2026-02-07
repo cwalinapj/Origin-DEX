@@ -42,7 +42,7 @@ open build/index.html
 anchor build
 ```
 
-## Anchor tests (initialize config PDA)
+## Anchor tests (initialize config + registry + pool)
 ```bash
 npm install
 export ORIGIN_DEX_PROGRAM_ID=ReplaceWithProgramId

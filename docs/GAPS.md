@@ -1,8 +1,8 @@
 # Gaps To "DEX Is Working"
 
 ## Missing DEX program logic
-- The on-chain program only supports `initialize` and `set_admin` for a config PDA.
-- No pool creation, swaps, liquidity, or fee accounting.
+- The on-chain program only supports config/registry initialization and creating empty pool records.
+- No pool state, swaps, liquidity, or fee accounting.
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.
