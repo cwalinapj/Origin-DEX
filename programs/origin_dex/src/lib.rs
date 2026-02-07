@@ -113,6 +113,10 @@ pub mod origin_dex {
         pool.guarantee_policy = guarantee_policy;
         pool.allowed_assets_mask = allowed_assets_mask;
         pool.guarantee_mint = guarantee_mint;
+        pool.token_a_price_cents = token_a_price_cents;
+        pool.token_b_price_cents = token_b_price_cents;
+        pool.total_a_amount = 0;
+        pool.total_b_amount = 0;
         pool.next_position_id = 0;
         pool.bump = *ctx.bumps.get("pool").ok_or(DexError::MissingBump)?;
         registry.next_pool_id = registry
@@ -130,6 +134,8 @@ pub mod origin_dex {
         left_params: [i64; 5],
         right_function_type: u8,
         right_params: [i64; 5],
+        amount_a: u64,
+        amount_b: u64,
     ) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         if min_price_cents >= max_price_cents {
@@ -155,7 +161,11 @@ pub mod origin_dex {
         position.right_function_type = right_function_type;
         position.left_params = left_params;
         position.right_params = right_params;
+        position.amount_a = amount_a;
+        position.amount_b = amount_b;
         position.bump = *ctx.bumps.get("position").ok_or(DexError::MissingBump)?;
+
+        apply_liquidity(pool, amount_a, amount_b)?;
 
         pool.next_position_id = pool
             .next_position_id
@@ -261,9 +271,26 @@ pub mod origin_dex {
         Ok(())
     }
 
-    pub fn add_liquidity_to_position(ctx: Context<AddLiquidityToPosition>) -> Result<()> {
+    pub fn add_liquidity_to_position(
+        ctx: Context<AddLiquidityToPosition>,
+        amount_a: u64,
+        amount_b: u64,
+    ) -> Result<()> {
         require_keys_eq!(ctx.accounts.position.pool, ctx.accounts.pool.key(), DexError::InvalidPosition);
         require_keys_eq!(ctx.accounts.position.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+
+        let pool = &mut ctx.accounts.pool;
+        let position = &mut ctx.accounts.position;
+
+        apply_liquidity(pool, amount_a, amount_b)?;
+        position.amount_a = position
+            .amount_a
+            .checked_add(amount_a)
+            .ok_or(DexError::Overflow)?;
+        position.amount_b = position
+            .amount_b
+            .checked_add(amount_b)
+            .ok_or(DexError::Overflow)?;
 
         token::mint_to(
             CpiContext::new_with_signer(
@@ -505,6 +532,7 @@ pub struct UnstakeLpNft<'info> {
 
 #[derive(Accounts)]
 pub struct AddLiquidityToPosition<'info> {
+    #[account(mut)]
     pub pool: Account<'info, Pool>,
     #[account(
         mut,
@@ -611,6 +639,10 @@ pub struct Pool {
     pub guarantee_policy: u8,
     pub allowed_assets_mask: u16,
     pub guarantee_mint: Pubkey,
+    pub token_a_price_cents: u64,
+    pub token_b_price_cents: u64,
+    pub total_a_amount: u64,
+    pub total_b_amount: u64,
     pub next_position_id: u64,
     pub bump: u8,
 }
@@ -632,6 +664,10 @@ impl Pool {
         + 2
         + 32
         + 8
+        + 8
+        + 8
+        + 8
+        + 8
         + 1;
 }
 
@@ -647,11 +683,14 @@ pub struct Position {
     pub right_function_type: u8,
     pub left_params: [i64; 5],
     pub right_params: [i64; 5],
+    pub amount_a: u64,
+    pub amount_b: u64,
     pub bump: u8,
 }
 
 impl Position {
-    pub const SIZE: usize = 32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 1;
+    pub const SIZE: usize =
+        32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 8 + 8 + 1;
 }
 
 #[account]
@@ -703,6 +742,10 @@ pub enum DexError {
     InvalidPriceRange,
     #[msg("Invalid function spec")]
     InvalidFunctionSpec,
+    #[msg("Invalid amount")]
+    InvalidAmount,
+    #[msg("One-sided deposit not allowed by depth rule")]
+    OneSidedNotAllowed,
 }
 
 fn compute_bin_spacing_milli_cents(
@@ -820,5 +863,43 @@ fn validate_function_spec(function_type: u8, params: &[i64; 5]) -> Result<()> {
         _ => return err!(DexError::InvalidFunctionSpec),
     }
 
+    Ok(())
+}
+
+fn apply_liquidity(pool: &mut Account<Pool>, amount_a: u64, amount_b: u64) -> Result<()> {
+    if amount_a == 0 && amount_b == 0 {
+        return err!(DexError::InvalidAmount);
+    }
+
+    let total_a = pool
+        .total_a_amount
+        .checked_add(amount_a)
+        .ok_or(DexError::Overflow)?;
+    let total_b = pool
+        .total_b_amount
+        .checked_add(amount_b)
+        .ok_or(DexError::Overflow)?;
+
+    if (amount_a == 0) ^ (amount_b == 0) {
+        let value_a = (total_a as u128)
+            .checked_mul(pool.token_a_price_cents as u128)
+            .ok_or(DexError::Overflow)?;
+        let value_b = (total_b as u128)
+            .checked_mul(pool.token_b_price_cents as u128)
+            .ok_or(DexError::Overflow)?;
+
+        let (other, this_side) = if amount_a == 0 {
+            (value_a, value_b)
+        } else {
+            (value_b, value_a)
+        };
+
+        if other < this_side {
+            return err!(DexError::OneSidedNotAllowed);
+        }
+    }
+
+    pool.total_a_amount = total_a;
+    pool.total_b_amount = total_b;
     Ok(())
 }

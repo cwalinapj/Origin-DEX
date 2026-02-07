@@ -54,6 +54,7 @@ anchor test --provider.cluster devnet --provider.wallet ./devnet-wallet.json
 Notes:
 - Tests also mint, stake, and unstake an LP NFT for the most recent pool.
 - Phase 1 has no native token rewards; staking is eligibility-only.
+- One-sided liquidity is only allowed if the other side remains >= 50% of total value.
 
 ## Smoke test (RPC connectivity)
 ```bash

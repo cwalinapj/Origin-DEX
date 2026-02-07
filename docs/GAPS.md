@@ -11,7 +11,9 @@
 - No enforcement for "non-ERC20" guarantee asset beyond manual selection.
 - No cross-chain governance mirror logic is implemented.
 - Function curves are stored but not executed on-chain (allocation math is off-chain only).
-- Position add/close only tracks LP NFTs; no liquidity accounting yet.
+- Position add/close tracks LP NFTs and raw pool totals only.
+- Pool liquidity accounting is minimal (raw totals only). No token transfers are enforced on-chain.
+- Off-chain bin allocation should be stored in IPFS metadata linked to the LP NFT (not implemented here).
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.

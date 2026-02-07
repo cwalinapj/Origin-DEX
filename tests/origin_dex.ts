@@ -72,7 +72,9 @@ describe("origin_dex", () => {
           { name: "leftFunctionType", type: "u8" },
           { name: "leftParams", type: { array: ["i64", 5] } },
           { name: "rightFunctionType", type: "u8" },
-          { name: "rightParams", type: { array: ["i64", 5] } }
+          { name: "rightParams", type: { array: ["i64", 5] } },
+          { name: "amountA", type: "u64" },
+          { name: "amountB", type: "u64" }
         ]
       },
       {
@@ -109,14 +111,17 @@ describe("origin_dex", () => {
       {
         name: "addLiquidityToPosition",
         accounts: [
-          { name: "pool", isMut: false, isSigner: false },
+          { name: "pool", isMut: true, isSigner: false },
           { name: "position", isMut: true, isSigner: false },
           { name: "lpMint", isMut: true, isSigner: false },
           { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
           { name: "owner", isMut: true, isSigner: true },
           { name: "tokenProgram", isMut: false, isSigner: false }
         ],
-        args: []
+        args: [
+          { name: "amountA", type: "u64" },
+          { name: "amountB", type: "u64" }
+        ]
       },
       {
         name: "closePosition",
@@ -158,7 +163,7 @@ describe("origin_dex", () => {
   };
 
   const decodePool = (data: Buffer) => {
-    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 8 + 1) {
+    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 8 + 8 + 8 + 8 + 8 + 1) {
       throw new Error("Pool data too short");
     }
     const poolId = Number(data.readBigUInt64LE(8));
@@ -182,10 +187,22 @@ describe("origin_dex", () => {
     const guaranteeMint = new PublicKey(
       data.slice(8 + 8 + 32 + 32 + 32 + 21, 8 + 8 + 32 + 32 + 32 + 53)
     );
-    const nextPositionId = Number(
+    const tokenAPriceCents = Number(
       data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 53)
     );
-    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 61);
+    const tokenBPriceCents = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 61)
+    );
+    const totalAAmount = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 69)
+    );
+    const totalBAmount = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 77)
+    );
+    const nextPositionId = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 85)
+    );
+    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 93);
     return {
       poolId,
       creator,
@@ -202,13 +219,17 @@ describe("origin_dex", () => {
       guaranteePolicy,
       allowedAssetsMask,
       guaranteeMint,
+      tokenAPriceCents,
+      tokenBPriceCents,
+      totalAAmount,
+      totalBAmount,
       nextPositionId,
       bump
     };
   };
 
   const decodePosition = (data: Buffer) => {
-    if (data.length < 32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 1) {
+    if (data.length < 32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 8 + 8 + 1) {
       throw new Error("Position data too short");
     }
     const pool = new PublicKey(data.slice(8, 8 + 32));
@@ -237,6 +258,10 @@ describe("origin_dex", () => {
       rightParams.push(data.readBigInt64LE(offset));
       offset += 8;
     }
+    const amountA = Number(data.readBigUInt64LE(offset));
+    offset += 8;
+    const amountB = Number(data.readBigUInt64LE(offset));
+    offset += 8;
     const bump = data.readUInt8(offset);
 
     return {
@@ -250,6 +275,8 @@ describe("origin_dex", () => {
       rightFunctionType,
       leftParams,
       rightParams,
+      amountA,
+      amountB,
       bump
     };
   };
@@ -398,6 +425,10 @@ describe("origin_dex", () => {
     expect(poolParsed.guaranteeMint.toBase58()).to.equal(
       PublicKey.default.toBase58()
     );
+    expect(poolParsed.tokenAPriceCents).to.equal(100);
+    expect(poolParsed.tokenBPriceCents).to.equal(100);
+    expect(poolParsed.totalAAmount).to.equal(0);
+    expect(poolParsed.totalBAmount).to.equal(0);
     expect(poolParsed.nextPositionId).to.equal(0);
 
     const registryAfter = await provider.connection.getAccountInfo(registry);
@@ -475,7 +506,9 @@ describe("origin_dex", () => {
         leftFunctionType,
         leftParams,
         rightFunctionType,
-        rightParams
+        rightParams,
+        new anchor.BN(10),
+        new anchor.BN(10)
       )
       .accounts({
         pool,
@@ -500,6 +533,8 @@ describe("origin_dex", () => {
     expect(parsedPosition.maxPriceCents).to.equal(110);
     expect(parsedPosition.leftFunctionType).to.equal(1);
     expect(parsedPosition.rightFunctionType).to.equal(2);
+    expect(parsedPosition.amountA).to.equal(10);
+    expect(parsedPosition.amountB).to.equal(10);
 
     const [stake] = PublicKey.findProgramAddressSync(
       [Buffer.from("stake"), position.toBuffer()],
@@ -549,7 +584,7 @@ describe("origin_dex", () => {
       .rpc();
 
     await program.methods
-      .addLiquidityToPosition()
+      .addLiquidityToPosition(new anchor.BN(5), new anchor.BN(5))
       .accounts({
         pool,
         position,
@@ -562,6 +597,12 @@ describe("origin_dex", () => {
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
       })
       .rpc();
+
+    const poolAfterLiquidity = await provider.connection.getAccountInfo(pool);
+    expect(poolAfterLiquidity).to.not.equal(null);
+    const parsedPoolAfter = decodePool(poolAfterLiquidity!.data);
+    expect(parsedPoolAfter.totalAAmount).to.equal(15);
+    expect(parsedPoolAfter.totalBAmount).to.equal(15);
 
     await program.methods
       .closePosition()

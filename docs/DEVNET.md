@@ -87,6 +87,8 @@ Position allocation parameters (stored on-chain per LP position):
 - `left_params` / `right_params`: fixed-point integers scaled by `1e6`
   - Linear params: `[m, x0, y0, unused, unused]`
   - Log params: `[A, B, C, h, k]`
+- `amount_a` / `amount_b`: raw token amounts for the position
+  - One-sided deposits are only allowed when the **other side remains >= 50% of total value** (based on pool price cents).
 
 Example (TypeScript):
 ```bash
