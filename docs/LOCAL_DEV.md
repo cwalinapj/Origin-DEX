@@ -55,6 +55,7 @@ Notes:
 - Tests also mint, stake, and unstake an LP NFT for the most recent pool.
 - Phase 1 has no native token rewards; staking is eligibility-only.
 - One-sided liquidity is only allowed if the other side remains >= 50% of total value.
+- Jupiter routing (off-chain): use `scripts/jup_route_quote.sh` for quotes.
 
 ## Smoke test (RPC connectivity)
 ```bash

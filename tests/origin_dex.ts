@@ -39,8 +39,13 @@ describe("origin_dex", () => {
           { name: "pool", isMut: true, isSigner: false },
           { name: "tokenAMint", isMut: false, isSigner: false },
           { name: "tokenBMint", isMut: false, isSigner: false },
+          { name: "vaultA", isMut: true, isSigner: false },
+          { name: "vaultB", isMut: true, isSigner: false },
           { name: "admin", isMut: true, isSigner: true },
-          { name: "systemProgram", isMut: false, isSigner: false }
+          { name: "systemProgram", isMut: false, isSigner: false },
+          { name: "associatedTokenProgram", isMut: false, isSigner: false },
+          { name: "tokenProgram", isMut: false, isSigner: false },
+          { name: "rent", isMut: false, isSigner: false }
         ],
         args: [
           { name: "feeBps", type: "u16" },
@@ -60,6 +65,12 @@ describe("origin_dex", () => {
           { name: "position", isMut: true, isSigner: false },
           { name: "lpMint", isMut: true, isSigner: false },
           { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "ownerTokenA", isMut: true, isSigner: false },
+          { name: "ownerTokenB", isMut: true, isSigner: false },
+          { name: "vaultA", isMut: true, isSigner: false },
+          { name: "vaultB", isMut: true, isSigner: false },
+          { name: "tokenAMint", isMut: false, isSigner: false },
+          { name: "tokenBMint", isMut: false, isSigner: false },
           { name: "owner", isMut: true, isSigner: true },
           { name: "tokenProgram", isMut: false, isSigner: false },
           { name: "associatedTokenProgram", isMut: false, isSigner: false },
@@ -115,6 +126,12 @@ describe("origin_dex", () => {
           { name: "position", isMut: true, isSigner: false },
           { name: "lpMint", isMut: true, isSigner: false },
           { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "ownerTokenA", isMut: true, isSigner: false },
+          { name: "ownerTokenB", isMut: true, isSigner: false },
+          { name: "vaultA", isMut: true, isSigner: false },
+          { name: "vaultB", isMut: true, isSigner: false },
+          { name: "tokenAMint", isMut: false, isSigner: false },
+          { name: "tokenBMint", isMut: false, isSigner: false },
           { name: "owner", isMut: true, isSigner: true },
           { name: "tokenProgram", isMut: false, isSigner: false }
         ],
@@ -163,7 +180,7 @@ describe("origin_dex", () => {
   };
 
   const decodePool = (data: Buffer) => {
-    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 8 + 8 + 8 + 8 + 8 + 1) {
+    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 8 + 8 + 8 + 8 + 32 + 32 + 8 + 1) {
       throw new Error("Pool data too short");
     }
     const poolId = Number(data.readBigUInt64LE(8));
@@ -199,10 +216,16 @@ describe("origin_dex", () => {
     const totalBAmount = Number(
       data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 77)
     );
-    const nextPositionId = Number(
-      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 85)
+    const vaultA = new PublicKey(
+      data.slice(8 + 8 + 32 + 32 + 32 + 85, 8 + 8 + 32 + 32 + 32 + 117)
     );
-    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 93);
+    const vaultB = new PublicKey(
+      data.slice(8 + 8 + 32 + 32 + 32 + 117, 8 + 8 + 32 + 32 + 32 + 149)
+    );
+    const nextPositionId = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 149)
+    );
+    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 157);
     return {
       poolId,
       creator,
@@ -223,6 +246,8 @@ describe("origin_dex", () => {
       tokenBPriceCents,
       totalAAmount,
       totalBAmount,
+      vaultA,
+      vaultB,
       nextPositionId,
       bump
     };
@@ -357,6 +382,14 @@ describe("origin_dex", () => {
       process.env.ORIGIN_DEX_TOKEN_B_MINT ||
         "So11111111111111111111111111111111111111112"
     );
+    const poolVaultA = anchor.utils.token.associatedAddress({
+      mint: tokenAMint,
+      owner: pool
+    });
+    const poolVaultB = anchor.utils.token.associatedAddress({
+      mint: tokenBMint,
+      owner: pool
+    });
 
     const tokenAInfo = await provider.connection.getParsedAccountInfo(tokenAMint);
     const tokenBInfo = await provider.connection.getParsedAccountInfo(tokenBMint);
@@ -397,8 +430,13 @@ describe("origin_dex", () => {
           pool,
           tokenAMint,
           tokenBMint,
+          vaultA: poolVaultA,
+          vaultB: poolVaultB,
           admin: provider.wallet.publicKey,
-          systemProgram: SystemProgram.programId
+          systemProgram: SystemProgram.programId,
+          associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY
         })
         .rpc();
     }
@@ -429,6 +467,8 @@ describe("origin_dex", () => {
     expect(poolParsed.tokenBPriceCents).to.equal(100);
     expect(poolParsed.totalAAmount).to.equal(0);
     expect(poolParsed.totalBAmount).to.equal(0);
+    expect(poolParsed.vaultA.toBase58()).to.equal(poolVaultA.toBase58());
+    expect(poolParsed.vaultB.toBase58()).to.equal(poolVaultB.toBase58());
     expect(poolParsed.nextPositionId).to.equal(0);
 
     const registryAfter = await provider.connection.getAccountInfo(registry);
@@ -518,6 +558,18 @@ describe("origin_dex", () => {
           mint: lpMint,
           owner: provider.wallet.publicKey
         }),
+        ownerTokenA: anchor.utils.token.associatedAddress({
+          mint: tokenAMint,
+          owner: provider.wallet.publicKey
+        }),
+        ownerTokenB: anchor.utils.token.associatedAddress({
+          mint: tokenBMint,
+          owner: provider.wallet.publicKey
+        }),
+        vaultA: poolVaultA,
+        vaultB: poolVaultB,
+        tokenAMint,
+        tokenBMint,
         owner: provider.wallet.publicKey,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
         associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
@@ -593,6 +645,18 @@ describe("origin_dex", () => {
           mint: lpMint,
           owner: provider.wallet.publicKey
         }),
+        ownerTokenA: anchor.utils.token.associatedAddress({
+          mint: tokenAMint,
+          owner: provider.wallet.publicKey
+        }),
+        ownerTokenB: anchor.utils.token.associatedAddress({
+          mint: tokenBMint,
+          owner: provider.wallet.publicKey
+        }),
+        vaultA: poolVaultA,
+        vaultB: poolVaultB,
+        tokenAMint,
+        tokenBMint,
         owner: provider.wallet.publicKey,
         tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
       })

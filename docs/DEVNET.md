@@ -89,6 +89,7 @@ Position allocation parameters (stored on-chain per LP position):
   - Log params: `[A, B, C, h, k]`
 - `amount_a` / `amount_b`: raw token amounts for the position
   - One-sided deposits are only allowed when the **other side remains >= 50% of total value** (based on pool price cents).
+  - On-chain escrow: user deposits are transferred into pool vaults (ATA owned by the pool PDA).
 
 Example (TypeScript):
 ```bash

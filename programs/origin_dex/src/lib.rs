@@ -117,6 +117,8 @@ pub mod origin_dex {
         pool.token_b_price_cents = token_b_price_cents;
         pool.total_a_amount = 0;
         pool.total_b_amount = 0;
+        pool.vault_a = ctx.accounts.vault_a.key();
+        pool.vault_b = ctx.accounts.vault_b.key();
         pool.next_position_id = 0;
         pool.bump = *ctx.bumps.get("pool").ok_or(DexError::MissingBump)?;
         registry.next_pool_id = registry
@@ -164,6 +166,17 @@ pub mod origin_dex {
         position.amount_a = amount_a;
         position.amount_b = amount_b;
         position.bump = *ctx.bumps.get("position").ok_or(DexError::MissingBump)?;
+
+        transfer_deposit(
+            &ctx.accounts.token_program,
+            &ctx.accounts.owner,
+            &ctx.accounts.owner_token_a,
+            &ctx.accounts.owner_token_b,
+            &ctx.accounts.vault_a,
+            &ctx.accounts.vault_b,
+            amount_a,
+            amount_b,
+        )?;
 
         apply_liquidity(pool, amount_a, amount_b)?;
 
@@ -281,6 +294,17 @@ pub mod origin_dex {
 
         let pool = &mut ctx.accounts.pool;
         let position = &mut ctx.accounts.position;
+
+        transfer_deposit(
+            &ctx.accounts.token_program,
+            &ctx.accounts.owner,
+            &ctx.accounts.owner_token_a,
+            &ctx.accounts.owner_token_b,
+            &ctx.accounts.vault_a,
+            &ctx.accounts.vault_b,
+            amount_a,
+            amount_b,
+        )?;
 
         apply_liquidity(pool, amount_a, amount_b)?;
         position.amount_a = position
@@ -412,10 +436,29 @@ pub struct CreatePool<'info> {
     pub token_a_mint: Account<'info, Mint>,
     pub token_b_mint: Account<'info, Mint>,
 
+    #[account(
+        init,
+        payer = admin,
+        associated_token::mint = token_a_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_a: Account<'info, TokenAccount>,
+
+    #[account(
+        init,
+        payer = admin,
+        associated_token::mint = token_b_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_b: Account<'info, TokenAccount>,
+
     #[account(mut)]
     pub admin: Signer<'info>,
 
     pub system_program: Program<'info, System>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -453,6 +496,27 @@ pub struct CreateLpPosition<'info> {
         associated_token::authority = owner
     )]
     pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub owner_token_a: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub owner_token_b: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_a_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_a: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = token_b_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_b: Account<'info, TokenAccount>,
+
+    pub token_a_mint: Account<'info, Mint>,
+    pub token_b_mint: Account<'info, Mint>,
 
     #[account(mut)]
     pub owner: Signer<'info>,
@@ -556,6 +620,27 @@ pub struct AddLiquidityToPosition<'info> {
     pub owner_lp_token_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
+    pub owner_token_a: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub owner_token_b: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_a_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_a: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = token_b_mint,
+        associated_token::authority = pool
+    )]
+    pub vault_b: Account<'info, TokenAccount>,
+
+    pub token_a_mint: Account<'info, Mint>,
+    pub token_b_mint: Account<'info, Mint>,
+
+    #[account(mut)]
     pub owner: Signer<'info>,
 
     pub token_program: Program<'info, Token>,
@@ -643,6 +728,8 @@ pub struct Pool {
     pub token_b_price_cents: u64,
     pub total_a_amount: u64,
     pub total_b_amount: u64,
+    pub vault_a: Pubkey,
+    pub vault_b: Pubkey,
     pub next_position_id: u64,
     pub bump: u8,
 }
@@ -667,6 +754,8 @@ impl Pool {
         + 8
         + 8
         + 8
+        + 32
+        + 32
         + 8
         + 1;
 }
@@ -901,5 +990,46 @@ fn apply_liquidity(pool: &mut Account<Pool>, amount_a: u64, amount_b: u64) -> Re
 
     pool.total_a_amount = total_a;
     pool.total_b_amount = total_b;
+    Ok(())
+}
+
+fn transfer_deposit(
+    token_program: &Program<Token>,
+    owner: &Signer,
+    owner_token_a: &Account<TokenAccount>,
+    owner_token_b: &Account<TokenAccount>,
+    vault_a: &Account<TokenAccount>,
+    vault_b: &Account<TokenAccount>,
+    amount_a: u64,
+    amount_b: u64,
+) -> Result<()> {
+    if amount_a > 0 {
+        token::transfer(
+            CpiContext::new(
+                token_program.to_account_info(),
+                token::Transfer {
+                    from: owner_token_a.to_account_info(),
+                    to: vault_a.to_account_info(),
+                    authority: owner.to_account_info(),
+                },
+            ),
+            amount_a,
+        )?;
+    }
+
+    if amount_b > 0 {
+        token::transfer(
+            CpiContext::new(
+                token_program.to_account_info(),
+                token::Transfer {
+                    from: owner_token_b.to_account_info(),
+                    to: vault_b.to_account_info(),
+                    authority: owner.to_account_info(),
+                },
+            ),
+            amount_b,
+        )?;
+    }
+
     Ok(())
 }

@@ -12,8 +12,9 @@
 - No cross-chain governance mirror logic is implemented.
 - Function curves are stored but not executed on-chain (allocation math is off-chain only).
 - Position add/close tracks LP NFTs and raw pool totals only.
-- Pool liquidity accounting is minimal (raw totals only). No token transfers are enforced on-chain.
+- Pool liquidity accounting is minimal (raw totals only). Token transfers are escrowed into pool vaults, but no pricing or swap logic exists.
 - Off-chain bin allocation should be stored in IPFS metadata linked to the LP NFT (not implemented here).
+- Jupiter routing is off-chain only; no on-chain swap/router integration.
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.
