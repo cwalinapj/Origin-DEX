@@ -66,7 +66,14 @@ describe("origin_dex", () => {
           { name: "systemProgram", isMut: false, isSigner: false },
           { name: "rent", isMut: false, isSigner: false }
         ],
-        args: []
+        args: [
+          { name: "minPriceCents", type: "u64" },
+          { name: "maxPriceCents", type: "u64" },
+          { name: "leftFunctionType", type: "u8" },
+          { name: "leftParams", type: { array: ["i64", 5] } },
+          { name: "rightFunctionType", type: "u8" },
+          { name: "rightParams", type: { array: ["i64", 5] } }
+        ]
       },
       {
         name: "stakeLpNft",
@@ -171,6 +178,53 @@ describe("origin_dex", () => {
       allowedAssetsMask,
       guaranteeMint,
       nextPositionId,
+      bump
+    };
+  };
+
+  const decodePosition = (data: Buffer) => {
+    if (data.length < 32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 1) {
+      throw new Error("Position data too short");
+    }
+    const pool = new PublicKey(data.slice(8, 8 + 32));
+    const owner = new PublicKey(data.slice(8 + 32, 8 + 32 + 32));
+    const positionId = Number(data.readBigUInt64LE(8 + 32 + 32));
+    const lpMint = new PublicKey(
+      data.slice(8 + 32 + 32 + 8, 8 + 32 + 32 + 8 + 32)
+    );
+    const minPriceCents = Number(
+      data.readBigUInt64LE(8 + 32 + 32 + 8 + 32)
+    );
+    const maxPriceCents = Number(
+      data.readBigUInt64LE(8 + 32 + 32 + 8 + 32 + 8)
+    );
+    const leftFunctionType = data.readUInt8(8 + 32 + 32 + 8 + 32 + 16);
+    const rightFunctionType = data.readUInt8(8 + 32 + 32 + 8 + 32 + 17);
+
+    const leftParams: bigint[] = [];
+    const rightParams: bigint[] = [];
+    let offset = 8 + 32 + 32 + 8 + 32 + 18;
+    for (let i = 0; i < 5; i += 1) {
+      leftParams.push(data.readBigInt64LE(offset));
+      offset += 8;
+    }
+    for (let i = 0; i < 5; i += 1) {
+      rightParams.push(data.readBigInt64LE(offset));
+      offset += 8;
+    }
+    const bump = data.readUInt8(offset);
+
+    return {
+      pool,
+      owner,
+      positionId,
+      lpMint,
+      minPriceCents,
+      maxPriceCents,
+      leftFunctionType,
+      rightFunctionType,
+      leftParams,
+      rightParams,
       bump
     };
   };
@@ -369,8 +423,35 @@ describe("origin_dex", () => {
       programId
     );
 
+    const minPriceCents = new anchor.BN(90);
+    const maxPriceCents = new anchor.BN(110);
+    const leftFunctionType = 1; // linear
+    const rightFunctionType = 2; // log
+    const scale = new anchor.BN(1_000_000);
+    const leftParams = [
+      new anchor.BN(1).mul(scale),
+      new anchor.BN(100).mul(scale),
+      new anchor.BN(0),
+      new anchor.BN(0),
+      new anchor.BN(0)
+    ];
+    const rightParams = [
+      new anchor.BN(1).mul(scale),
+      new anchor.BN(10).mul(scale),
+      new anchor.BN(1).mul(scale),
+      new anchor.BN(100).mul(scale),
+      new anchor.BN(0)
+    ];
+
     await program.methods
-      .createLpPosition()
+      .createLpPosition(
+        minPriceCents,
+        maxPriceCents,
+        leftFunctionType,
+        leftParams,
+        rightFunctionType,
+        rightParams
+      )
       .accounts({
         pool,
         position,
@@ -386,6 +467,14 @@ describe("origin_dex", () => {
         rent: anchor.web3.SYSVAR_RENT_PUBKEY
       })
       .rpc();
+
+    const positionInfo = await provider.connection.getAccountInfo(position);
+    expect(positionInfo).to.not.equal(null);
+    const parsedPosition = decodePosition(positionInfo!.data);
+    expect(parsedPosition.minPriceCents).to.equal(90);
+    expect(parsedPosition.maxPriceCents).to.equal(110);
+    expect(parsedPosition.leftFunctionType).to.equal(1);
+    expect(parsedPosition.rightFunctionType).to.equal(2);
 
     const [stake] = PublicKey.findProgramAddressSync(
       [Buffer.from("stake"), position.toBuffer()],

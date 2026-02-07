@@ -10,6 +10,7 @@
 - Redemption guarantees and reserve vaults are not implemented.
 - No enforcement for "non-ERC20" guarantee asset beyond manual selection.
 - No cross-chain governance mirror logic is implemented.
+- Function curves are stored but not executed on-chain (allocation math is off-chain only).
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.

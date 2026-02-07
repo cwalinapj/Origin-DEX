@@ -24,6 +24,11 @@ pub const ASSET_MASK_COMMODITY_PROXY: u16 = 1 << 5;
 
 pub const HOUSE_FEE_REBATE_BPS: u16 = 0;
 
+pub const FUNCTION_LINEAR: u8 = 1;
+pub const FUNCTION_LOG: u8 = 2;
+
+pub const PARAM_SCALE: i64 = 1_000_000;
+
 #[program]
 pub mod origin_dex {
     use super::*;
@@ -117,8 +122,22 @@ pub mod origin_dex {
         Ok(())
     }
 
-    pub fn create_lp_position(ctx: Context<CreateLpPosition>) -> Result<()> {
+    pub fn create_lp_position(
+        ctx: Context<CreateLpPosition>,
+        min_price_cents: u64,
+        max_price_cents: u64,
+        left_function_type: u8,
+        left_params: [i64; 5],
+        right_function_type: u8,
+        right_params: [i64; 5],
+    ) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
+        if min_price_cents >= max_price_cents {
+            return err!(DexError::InvalidPriceRange);
+        }
+
+        validate_function_spec(left_function_type, &left_params)?;
+        validate_function_spec(right_function_type, &right_params)?;
 
         let position = &mut ctx.accounts.position;
         require_keys_eq!(
@@ -130,6 +149,12 @@ pub mod origin_dex {
         position.owner = ctx.accounts.owner.key();
         position.position_id = pool.next_position_id;
         position.lp_mint = ctx.accounts.lp_mint.key();
+        position.min_price_cents = min_price_cents;
+        position.max_price_cents = max_price_cents;
+        position.left_function_type = left_function_type;
+        position.right_function_type = right_function_type;
+        position.left_params = left_params;
+        position.right_params = right_params;
         position.bump = *ctx.bumps.get("position").ok_or(DexError::MissingBump)?;
 
         pool.next_position_id = pool
@@ -490,11 +515,17 @@ pub struct Position {
     pub owner: Pubkey,
     pub position_id: u64,
     pub lp_mint: Pubkey,
+    pub min_price_cents: u64,
+    pub max_price_cents: u64,
+    pub left_function_type: u8,
+    pub right_function_type: u8,
+    pub left_params: [i64; 5],
+    pub right_params: [i64; 5],
     pub bump: u8,
 }
 
 impl Position {
-    pub const SIZE: usize = 32 + 32 + 8 + 32 + 1;
+    pub const SIZE: usize = 32 + 32 + 8 + 32 + 8 + 8 + 1 + 1 + (8 * 5) + (8 * 5) + 1;
 }
 
 #[account]
@@ -542,6 +573,10 @@ pub enum DexError {
     InvalidPrice,
     #[msg("Position already initialized")]
     PositionAlreadyInitialized,
+    #[msg("Invalid price range")]
+    InvalidPriceRange,
+    #[msg("Invalid function spec")]
+    InvalidFunctionSpec,
 }
 
 fn compute_bin_spacing_milli_cents(
@@ -637,5 +672,27 @@ fn validate_guarantee_policy(
         }
         _ => return err!(DexError::InvalidGuaranteePolicy),
     }
+    Ok(())
+}
+
+fn validate_function_spec(function_type: u8, params: &[i64; 5]) -> Result<()> {
+    match function_type {
+        FUNCTION_LINEAR => {
+            // f(x) = m(x - x0) + y0
+            // params: [m, x0, y0, unused, unused]
+            let _m = params[0];
+            let _x0 = params[1];
+            let _y0 = params[2];
+        }
+        FUNCTION_LOG => {
+            // g(x) = A * log_B(C(-x + h)) + k
+            // params: [A, B, C, h, k]
+            if params[1] == 0 || params[2] == 0 {
+                return err!(DexError::InvalidFunctionSpec);
+            }
+        }
+        _ => return err!(DexError::InvalidFunctionSpec),
+    }
+
     Ok(())
 }

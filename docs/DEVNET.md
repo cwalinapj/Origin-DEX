@@ -77,6 +77,17 @@ Pool parameters:
   - `32` Commodity proxy
   - Note: ERC20 proxies are intentionally excluded from user-choice guarantees.
 
+Position allocation parameters (stored on-chain per LP position):
+- `min_price_cents` / `max_price_cents`:
+  - Absolute price bounds for the position range.
+  - Bin sampling uses **one bin per price interval** between min/max.
+- `left_function_type` / `right_function_type`:
+  - `1` linear: `f(x)=m(x−x0)+y0`
+  - `2` log: `g(x)=A⋅log_B(C(−x+h))+k`
+- `left_params` / `right_params`: fixed-point integers scaled by `1e6`
+  - Linear params: `[m, x0, y0, unused, unused]`
+  - Log params: `[A, B, C, h, k]`
+
 Example (TypeScript):
 ```bash
 cd /Users/root1/scripts/Origin-DEX/clients/ts
