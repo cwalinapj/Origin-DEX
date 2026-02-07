@@ -42,6 +42,13 @@ open build/index.html
 anchor build
 ```
 
+## Anchor tests (initialize config PDA)
+```bash
+npm install
+export ORIGIN_DEX_PROGRAM_ID=ReplaceWithProgramId
+anchor test --provider.cluster devnet --provider.wallet ./devnet-wallet.json
+```
+
 ## Smoke test (RPC connectivity)
 ```bash
 source .venv/bin/activate

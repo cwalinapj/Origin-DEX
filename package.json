@@ -1,0 +1,14 @@
+{
+  "name": "origin-dex-anchor-tests",
+  "version": "0.1.0",
+  "private": true,
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/web3.js": "^1.95.3",
+    "chai": "^4.4.1",
+    "mocha": "^10.2.0",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
