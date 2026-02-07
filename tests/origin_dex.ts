@@ -45,7 +45,12 @@ describe("origin_dex", () => {
         args: [
           { name: "feeBps", type: "u16" },
           { name: "tokenAPriceCents", type: "u64" },
-          { name: "tokenBPriceCents", type: "u64" }
+          { name: "tokenBPriceCents", type: "u64" },
+          { name: "tokenAKind", type: "u8" },
+          { name: "tokenBKind", type: "u8" },
+          { name: "guaranteePolicy", type: "u8" },
+          { name: "allowedAssetsMask", type: "u16" },
+          { name: "guaranteeMint", type: "publicKey" }
         ]
       }
     ]
@@ -75,7 +80,7 @@ describe("origin_dex", () => {
   };
 
   const decodePool = (data: Buffer) => {
-    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 2 + 2 + 2 + 8 + 1) {
+    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 1) {
       throw new Error("Pool data too short");
     }
     const poolId = Number(data.readBigUInt64LE(8));
@@ -84,26 +89,38 @@ describe("origin_dex", () => {
     const tokenBMint = new PublicKey(
       data.slice(8 + 8 + 32 + 32, 8 + 8 + 32 + 32 + 32)
     );
-    const tokenAFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32) === 1;
-    const tokenBFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32 + 1) === 1;
-    const feeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 2);
-    const lpFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 4);
-    const houseFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 6);
+    const tokenAKind = data.readUInt8(8 + 8 + 32 + 32 + 32);
+    const tokenBKind = data.readUInt8(8 + 8 + 32 + 32 + 32 + 1);
+    const tokenAFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32 + 2) === 1;
+    const tokenBFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32 + 3) === 1;
+    const feeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 4);
+    const lpFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 6);
+    const houseFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 8);
     const binSpacingMilliCents = Number(
-      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 8)
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 10)
     );
-    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 16);
+    const guaranteePolicy = data.readUInt8(8 + 8 + 32 + 32 + 32 + 18);
+    const allowedAssetsMask = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 19);
+    const guaranteeMint = new PublicKey(
+      data.slice(8 + 8 + 32 + 32 + 32 + 21, 8 + 8 + 32 + 32 + 32 + 53)
+    );
+    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 53);
     return {
       poolId,
       creator,
       tokenAMint,
       tokenBMint,
+      tokenAKind,
+      tokenBKind,
       tokenAFrozen,
       tokenBFrozen,
       feeBps,
       lpFeeBps,
       houseFeeBps,
       binSpacingMilliCents,
+      guaranteePolicy,
+      allowedAssetsMask,
+      guaranteeMint,
       bump
     };
   };
@@ -195,15 +212,30 @@ describe("origin_dex", () => {
       tokenBInfo.value?.data &&
       "parsed" in tokenBInfo.value.data &&
       tokenBInfo.value.data.parsed.info.freezeAuthority;
-    if (!tokenAFrozen || !tokenBFrozen) {
-      // Skip if default mints are not frozen; set env vars to frozen mints to test.
+    if (!tokenAFrozen) {
+      // USDC must be frozen; set ORIGIN_DEX_TOKEN_A_MINT to a frozen mint.
       return;
     }
 
     const poolBefore = await provider.connection.getAccountInfo(pool);
     if (!poolBefore) {
+      const guaranteePolicy = 1; // user choice
+      const allowedAssetsMask = 0b11; // WSOL + USDC
+      const guaranteeMint = PublicKey.default;
+      const tokenAKind = 4; // USDC
+      const tokenBKind = 3; // WSOL
+
       await program.methods
-        .createPool(100, new anchor.BN(100), new anchor.BN(100))
+        .createPool(
+          100,
+          new anchor.BN(100),
+          new anchor.BN(100),
+          tokenAKind,
+          tokenBKind,
+          guaranteePolicy,
+          allowedAssetsMask,
+          guaranteeMint
+        )
         .accounts({
           registry,
           pool,
@@ -224,12 +256,19 @@ describe("origin_dex", () => {
     );
     expect(poolParsed.tokenAMint.toBase58()).to.equal(tokenAMint.toBase58());
     expect(poolParsed.tokenBMint.toBase58()).to.equal(tokenBMint.toBase58());
+    expect(poolParsed.tokenAKind).to.equal(4);
+    expect(poolParsed.tokenBKind).to.equal(3);
     expect(poolParsed.tokenAFrozen).to.equal(true);
-    expect(poolParsed.tokenBFrozen).to.equal(true);
+    expect(poolParsed.tokenBFrozen).to.equal(false);
     expect(poolParsed.feeBps).to.equal(100);
     expect(poolParsed.houseFeeBps).to.equal(5);
     expect(poolParsed.lpFeeBps).to.equal(95);
     expect(poolParsed.binSpacingMilliCents).to.equal(1000);
+    expect(poolParsed.guaranteePolicy).to.equal(1);
+    expect(poolParsed.allowedAssetsMask).to.equal(0b11);
+    expect(poolParsed.guaranteeMint.toBase58()).to.equal(
+      PublicKey.default.toBase58()
+    );
 
     const registryAfter = await provider.connection.getAccountInfo(registry);
     expect(registryAfter).to.not.equal(null);

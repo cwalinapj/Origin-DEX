@@ -7,6 +7,9 @@
 - One-sided deposits and matching constraints are not implemented.
 - LP NFT minting and staking rewards are not implemented.
 - House-fee rebate in native token is not implemented.
+- Redemption guarantees and reserve vaults are not implemented.
+- No enforcement for "non-ERC20" guarantee asset beyond manual selection.
+- No cross-chain governance mirror logic is implemented.
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.

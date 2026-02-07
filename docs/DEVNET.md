@@ -57,6 +57,25 @@ Pool parameters:
 - `fee_bps`: total trading fee in basis points. The house takes 5% of this fee; LPs receive the remainder.
 - `token_a_price_cents` / `token_b_price_cents`: used to derive bin spacing.
   - Bin spacing is `avg_price_cents * 10` (milli-cents), so $1.00 => 1000 (1 cent), $0.50 => 500 (0.5 cents), $10.00 => 10000 (10 cents).
+- `token_a_kind` / `token_b_kind`:
+  - `1` ERC20 proxy (mint must be frozen)
+  - `2` Fiat/Gold proxy (mint must be **unfrozen**)
+  - `3` Wrapped SOL (no freeze requirement)
+  - `4` USDC (mint must be frozen)
+  - `5` EUR token (mint must be frozen)
+  - `6` Commodity proxy (mint must be frozen)
+  - `7` Native token (mint must be frozen)
+- `guarantee_policy`:
+  - `0` fixed mint (set `guarantee_mint`, `allowed_assets_mask = 0`)
+  - `1` user choice (set `allowed_assets_mask`, `guarantee_mint = default`)
+- `allowed_assets_mask` bits for user choice:
+  - `1` WSOL
+  - `2` USDC
+  - `4` Native token
+  - `8` EUR token
+  - `16` Fiat/Gold proxy
+  - `32` Commodity proxy
+  - Note: ERC20 proxies are intentionally excluded from user-choice guarantees.
 
 Example (TypeScript):
 ```bash
@@ -75,7 +94,7 @@ anchor.setProvider(provider);\
 const [registry] = PublicKey.findProgramAddressSync([Buffer.from('registry')], programId);\
 const idl = { version: '0.1.0', name: 'origin_dex', instructions: [\
 { name: 'initRegistry', accounts: [ { name: 'registry', isMut: true, isSigner: false }, { name: 'admin', isMut: true, isSigner: true }, { name: 'systemProgram', isMut: false, isSigner: false } ], args: [] },\
-{ name: 'createPool', accounts: [ { name: 'registry', isMut: true, isSigner: false }, { name: 'pool', isMut: true, isSigner: false }, { name: 'tokenAMint', isMut: false, isSigner: false }, { name: 'tokenBMint', isMut: false, isSigner: false }, { name: 'admin', isMut: true, isSigner: true }, { name: 'systemProgram', isMut: false, isSigner: false } ], args: [ { name: 'feeBps', type: 'u16' }, { name: 'tokenAPriceCents', type: 'u64' }, { name: 'tokenBPriceCents', type: 'u64' } ] } ] };\
+{ name: 'createPool', accounts: [ { name: 'registry', isMut: true, isSigner: false }, { name: 'pool', isMut: true, isSigner: false }, { name: 'tokenAMint', isMut: false, isSigner: false }, { name: 'tokenBMint', isMut: false, isSigner: false }, { name: 'admin', isMut: true, isSigner: true }, { name: 'systemProgram', isMut: false, isSigner: false } ], args: [ { name: 'feeBps', type: 'u16' }, { name: 'tokenAPriceCents', type: 'u64' }, { name: 'tokenBPriceCents', type: 'u64' }, { name: 'tokenAKind', type: 'u8' }, { name: 'tokenBKind', type: 'u8' }, { name: 'guaranteePolicy', type: 'u8' }, { name: 'allowedAssetsMask', type: 'u16' }, { name: 'guaranteeMint', type: 'publicKey' } ] } ] };\
 const program = new anchor.Program(idl, programId, provider);\
 const regInfo = await provider.connection.getAccountInfo(registry);\
 if (!regInfo) { await program.methods.initRegistry().accounts({ registry, admin: provider.wallet.publicKey, systemProgram: anchor.web3.SystemProgram.programId }).rpc(); }\
@@ -86,7 +105,9 @@ const poolSeed = Buffer.alloc(8); poolSeed.writeBigUInt64LE(BigInt(nextPoolId));
 const [pool] = PublicKey.findProgramAddressSync([Buffer.from('pool'), poolSeed], programId);\
 const tokenAMint = new PublicKey(process.env.ORIGIN_DEX_TOKEN_A_MINT);\
 const tokenBMint = new PublicKey(process.env.ORIGIN_DEX_TOKEN_B_MINT);\
-await program.methods.createPool(100, new anchor.BN(100), new anchor.BN(100)).accounts({ registry, pool, tokenAMint, tokenBMint, admin: provider.wallet.publicKey, systemProgram: anchor.web3.SystemProgram.programId }).rpc();\
+const guaranteePolicy = 1; /* user choice */\
+const allowedAssetsMask = 3; /* WSOL + USDC */\
+await program.methods.createPool(100, new anchor.BN(100), new anchor.BN(100), 4, 3, guaranteePolicy, allowedAssetsMask, PublicKey.default).accounts({ registry, pool, tokenAMint, tokenBMint, admin: provider.wallet.publicKey, systemProgram: anchor.web3.SystemProgram.programId }).rpc();\
 console.log('Created pool', pool.toBase58());"
 ```
 
