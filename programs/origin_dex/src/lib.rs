@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::Mint;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 declare_id!("Orig1nDex111111111111111111111111111111111");
 
@@ -20,6 +21,8 @@ pub const ASSET_MASK_NATIVE_TOKEN: u16 = 1 << 2;
 pub const ASSET_MASK_EUR_TOKEN: u16 = 1 << 3;
 pub const ASSET_MASK_FIAT_GOLD_PROXY: u16 = 1 << 4;
 pub const ASSET_MASK_COMMODITY_PROXY: u16 = 1 << 5;
+
+pub const HOUSE_FEE_REBATE_BPS: u16 = 0;
 
 #[program]
 pub mod origin_dex {
@@ -105,11 +108,131 @@ pub mod origin_dex {
         pool.guarantee_policy = guarantee_policy;
         pool.allowed_assets_mask = allowed_assets_mask;
         pool.guarantee_mint = guarantee_mint;
+        pool.next_position_id = 0;
         pool.bump = *ctx.bumps.get("pool").ok_or(DexError::MissingBump)?;
         registry.next_pool_id = registry
             .next_pool_id
             .checked_add(1)
             .ok_or(DexError::Overflow)?;
+        Ok(())
+    }
+
+    pub fn create_lp_position(ctx: Context<CreateLpPosition>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+
+        let position = &mut ctx.accounts.position;
+        require_keys_eq!(
+            position.pool,
+            Pubkey::default(),
+            DexError::PositionAlreadyInitialized
+        );
+        position.pool = pool.key();
+        position.owner = ctx.accounts.owner.key();
+        position.position_id = pool.next_position_id;
+        position.lp_mint = ctx.accounts.lp_mint.key();
+        position.bump = *ctx.bumps.get("position").ok_or(DexError::MissingBump)?;
+
+        pool.next_position_id = pool
+            .next_position_id
+            .checked_add(1)
+            .ok_or(DexError::Overflow)?;
+
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::MintTo {
+                    mint: ctx.accounts.lp_mint.to_account_info(),
+                    to: ctx.accounts.owner_lp_token_account.to_account_info(),
+                    authority: ctx.accounts.position.to_account_info(),
+                },
+                &[&[
+                    b"position",
+                    pool.key().as_ref(),
+                    &position.position_id.to_le_bytes(),
+                    &[position.bump],
+                ]],
+            ),
+            1,
+        )?;
+
+        token::set_authority(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::SetAuthority {
+                    current_authority: ctx.accounts.position.to_account_info(),
+                    account_or_mint: ctx.accounts.lp_mint.to_account_info(),
+                },
+                &[&[
+                    b"position",
+                    pool.key().as_ref(),
+                    &position.position_id.to_le_bytes(),
+                    &[position.bump],
+                ]],
+            ),
+            token::AuthorityType::MintTokens,
+            None,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn stake_lp_nft(ctx: Context<StakeLpNft>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.position.pool, ctx.accounts.pool.key(), DexError::InvalidPosition);
+        require_keys_eq!(ctx.accounts.position.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+        let stake = &mut ctx.accounts.stake;
+        if stake.active {
+            return err!(DexError::AlreadyStaked);
+        }
+        stake.pool = ctx.accounts.pool.key();
+        stake.position = ctx.accounts.position.key();
+        stake.owner = ctx.accounts.owner.key();
+        stake.staked_at_slot = Clock::get()?.slot;
+        stake.rebate_bps = HOUSE_FEE_REBATE_BPS;
+        stake.active = true;
+        stake.bump = *ctx.bumps.get("stake").ok_or(DexError::MissingBump)?;
+
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.owner_lp_token_account.to_account_info(),
+                    to: ctx.accounts.stake_vault.to_account_info(),
+                    authority: ctx.accounts.owner.to_account_info(),
+                },
+            ),
+            1,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn unstake_lp_nft(ctx: Context<UnstakeLpNft>) -> Result<()> {
+        require_keys_eq!(ctx.accounts.position.pool, ctx.accounts.pool.key(), DexError::InvalidPosition);
+        require_keys_eq!(ctx.accounts.position.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+        let stake = &mut ctx.accounts.stake;
+        if !stake.active {
+            return err!(DexError::NotStaked);
+        }
+        require_keys_eq!(stake.owner, ctx.accounts.owner.key(), DexError::Unauthorized);
+        stake.active = false;
+
+        token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token::Transfer {
+                    from: ctx.accounts.stake_vault.to_account_info(),
+                    to: ctx.accounts.owner_lp_token_account.to_account_info(),
+                    authority: ctx.accounts.stake.to_account_info(),
+                },
+                &[&[
+                    b"stake",
+                    ctx.accounts.position.key().as_ref(),
+                    &[stake.bump],
+                ]],
+            ),
+            1,
+        )?;
+
         Ok(())
     }
 }
@@ -187,6 +310,116 @@ pub struct CreatePool<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct CreateLpPosition<'info> {
+    #[account(
+        mut,
+        seeds = [b"pool", &pool.pool_id.to_le_bytes()],
+        bump = pool.bump,
+    )]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + Position::SIZE,
+        seeds = [b"position", pool.key().as_ref(), &pool.next_position_id.to_le_bytes()],
+        bump
+    )]
+    pub position: Account<'info, Position>,
+
+    #[account(
+        init,
+        payer = owner,
+        mint::decimals = 0,
+        mint::authority = position,
+        seeds = [b"lp_mint", position.key().as_ref()],
+        bump
+    )]
+    pub lp_mint: Account<'info, Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        associated_token::mint = lp_mint,
+        associated_token::authority = owner
+    )]
+    pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct StakeLpNft<'info> {
+    pub pool: Account<'info, Pool>,
+    pub position: Account<'info, Position>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + Stake::SIZE,
+        seeds = [b"stake", position.key().as_ref()],
+        bump
+    )]
+    pub stake: Account<'info, Stake>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        associated_token::mint = lp_mint,
+        associated_token::authority = stake
+    )]
+    pub stake_vault: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    pub lp_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct UnstakeLpNft<'info> {
+    pub pool: Account<'info, Pool>,
+    pub position: Account<'info, Position>,
+
+    #[account(
+        mut,
+        seeds = [b"stake", position.key().as_ref()],
+        bump = stake.bump
+    )]
+    pub stake: Account<'info, Stake>,
+
+    #[account(
+        mut,
+        associated_token::mint = lp_mint,
+        associated_token::authority = stake
+    )]
+    pub stake_vault: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub owner_lp_token_account: Account<'info, TokenAccount>,
+
+    pub lp_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program: Program<'info, Token>,
+}
 #[account]
 pub struct Config {
     pub admin: Pubkey,
@@ -227,6 +460,7 @@ pub struct Pool {
     pub guarantee_policy: u8,
     pub allowed_assets_mask: u16,
     pub guarantee_mint: Pubkey,
+    pub next_position_id: u64,
     pub bump: u8,
 }
 
@@ -246,7 +480,36 @@ impl Pool {
         + 1
         + 2
         + 32
+        + 8
         + 1;
+}
+
+#[account]
+pub struct Position {
+    pub pool: Pubkey,
+    pub owner: Pubkey,
+    pub position_id: u64,
+    pub lp_mint: Pubkey,
+    pub bump: u8,
+}
+
+impl Position {
+    pub const SIZE: usize = 32 + 32 + 8 + 32 + 1;
+}
+
+#[account]
+pub struct Stake {
+    pub pool: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub staked_at_slot: u64,
+    pub rebate_bps: u16,
+    pub active: bool,
+    pub bump: u8,
+}
+
+impl Stake {
+    pub const SIZE: usize = 32 + 32 + 32 + 8 + 2 + 1 + 1;
 }
 
 #[error_code]
@@ -267,10 +530,18 @@ pub enum DexError {
     InvalidTokenKind,
     #[msg("Invalid guarantee policy")]
     InvalidGuaranteePolicy,
+    #[msg("Already staked")]
+    AlreadyStaked,
+    #[msg("Not staked")]
+    NotStaked,
+    #[msg("Invalid position")]
+    InvalidPosition,
     #[msg("Arithmetic overflow")]
     Overflow,
     #[msg("Invalid price inputs")]
     InvalidPrice,
+    #[msg("Position already initialized")]
+    PositionAlreadyInitialized,
 }
 
 fn compute_bin_spacing_milli_cents(

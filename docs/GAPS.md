@@ -6,7 +6,7 @@
 - Function-based allocation logic is not implemented on-chain.
 - One-sided deposits and matching constraints are not implemented.
 - LP NFT minting and staking rewards are not implemented.
-- House-fee rebate in native token is not implemented.
+- Phase 1: no native token rewards; rebate is disabled.
 - Redemption guarantees and reserve vaults are not implemented.
 - No enforcement for "non-ERC20" guarantee asset beyond manual selection.
 - No cross-chain governance mirror logic is implemented.

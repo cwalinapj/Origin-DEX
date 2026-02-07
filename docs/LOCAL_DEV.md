@@ -51,6 +51,10 @@ export ORIGIN_DEX_TOKEN_B_MINT=FrozenMintB
 anchor test --provider.cluster devnet --provider.wallet ./devnet-wallet.json
 ```
 
+Notes:
+- Tests also mint, stake, and unstake an LP NFT for the most recent pool.
+- Phase 1 has no native token rewards; staking is eligibility-only.
+
 ## Smoke test (RPC connectivity)
 ```bash
 source .venv/bin/activate

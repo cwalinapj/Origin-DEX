@@ -118,5 +118,8 @@ console.log('Created pool', pool.toBase58());"
 - Registry PDA initialized
 - Pool PDA created
 - Pool mints have freeze authority
+- LP position can be minted and staked
 - `clients/ts` reports the config PDA exists
 - `clients/py` can read the config PDA
+
+Note: Phase 1 has **no native token rewards**. Staking is a custody/eligibility primitive only.

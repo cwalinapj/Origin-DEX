@@ -52,6 +52,52 @@ describe("origin_dex", () => {
           { name: "allowedAssetsMask", type: "u16" },
           { name: "guaranteeMint", type: "publicKey" }
         ]
+      },
+      {
+        name: "createLpPosition",
+        accounts: [
+          { name: "pool", isMut: true, isSigner: false },
+          { name: "position", isMut: true, isSigner: false },
+          { name: "lpMint", isMut: true, isSigner: false },
+          { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "owner", isMut: true, isSigner: true },
+          { name: "tokenProgram", isMut: false, isSigner: false },
+          { name: "associatedTokenProgram", isMut: false, isSigner: false },
+          { name: "systemProgram", isMut: false, isSigner: false },
+          { name: "rent", isMut: false, isSigner: false }
+        ],
+        args: []
+      },
+      {
+        name: "stakeLpNft",
+        accounts: [
+          { name: "pool", isMut: false, isSigner: false },
+          { name: "position", isMut: false, isSigner: false },
+          { name: "stake", isMut: true, isSigner: false },
+          { name: "stakeVault", isMut: true, isSigner: false },
+          { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "lpMint", isMut: false, isSigner: false },
+          { name: "owner", isMut: true, isSigner: true },
+          { name: "tokenProgram", isMut: false, isSigner: false },
+          { name: "associatedTokenProgram", isMut: false, isSigner: false },
+          { name: "systemProgram", isMut: false, isSigner: false },
+          { name: "rent", isMut: false, isSigner: false }
+        ],
+        args: []
+      },
+      {
+        name: "unstakeLpNft",
+        accounts: [
+          { name: "pool", isMut: false, isSigner: false },
+          { name: "position", isMut: false, isSigner: false },
+          { name: "stake", isMut: true, isSigner: false },
+          { name: "stakeVault", isMut: true, isSigner: false },
+          { name: "ownerLpTokenAccount", isMut: true, isSigner: false },
+          { name: "lpMint", isMut: false, isSigner: false },
+          { name: "owner", isMut: true, isSigner: true },
+          { name: "tokenProgram", isMut: false, isSigner: false }
+        ],
+        args: []
       }
     ]
   } as anchor.Idl;
@@ -80,7 +126,7 @@ describe("origin_dex", () => {
   };
 
   const decodePool = (data: Buffer) => {
-    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 1) {
+    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 1 + 1 + 2 + 2 + 2 + 8 + 1 + 2 + 32 + 8 + 1) {
       throw new Error("Pool data too short");
     }
     const poolId = Number(data.readBigUInt64LE(8));
@@ -104,7 +150,10 @@ describe("origin_dex", () => {
     const guaranteeMint = new PublicKey(
       data.slice(8 + 8 + 32 + 32 + 32 + 21, 8 + 8 + 32 + 32 + 32 + 53)
     );
-    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 53);
+    const nextPositionId = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 53)
+    );
+    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 61);
     return {
       poolId,
       creator,
@@ -121,6 +170,7 @@ describe("origin_dex", () => {
       guaranteePolicy,
       allowedAssetsMask,
       guaranteeMint,
+      nextPositionId,
       bump
     };
   };
@@ -269,6 +319,7 @@ describe("origin_dex", () => {
     expect(poolParsed.guaranteeMint.toBase58()).to.equal(
       PublicKey.default.toBase58()
     );
+    expect(poolParsed.nextPositionId).to.equal(0);
 
     const registryAfter = await provider.connection.getAccountInfo(registry);
     expect(registryAfter).to.not.equal(null);
@@ -276,5 +327,111 @@ describe("origin_dex", () => {
     expect(registryParsedAfter.nextPoolId).to.equal(
       registryParsed.nextPoolId + 1
     );
+  });
+
+  it("mints, stakes, and unstakes an LP NFT", async () => {
+    const [registry] = PublicKey.findProgramAddressSync(
+      [Buffer.from("registry")],
+      programId
+    );
+    const regAfter = await provider.connection.getAccountInfo(registry);
+    if (!regAfter) {
+      return;
+    }
+    const data = regAfter.data;
+    const nextPoolId = Number(data.readBigUInt64LE(8 + 32 + 1));
+    if (nextPoolId === 0) {
+      return;
+    }
+
+    const lastPoolId = nextPoolId - 1;
+    const poolSeed = Buffer.alloc(8);
+    poolSeed.writeBigUInt64LE(BigInt(lastPoolId));
+    const [pool] = PublicKey.findProgramAddressSync(
+      [Buffer.from("pool"), poolSeed],
+      programId
+    );
+
+    const poolInfo = await provider.connection.getAccountInfo(pool);
+    if (!poolInfo) {
+      return;
+    }
+    const poolParsed = decodePool(poolInfo.data);
+
+    const positionSeed = Buffer.alloc(8);
+    positionSeed.writeBigUInt64LE(BigInt(poolParsed.nextPositionId));
+    const [position] = PublicKey.findProgramAddressSync(
+      [Buffer.from("position"), pool.toBuffer(), positionSeed],
+      programId
+    );
+    const [lpMint] = PublicKey.findProgramAddressSync(
+      [Buffer.from("lp_mint"), position.toBuffer()],
+      programId
+    );
+
+    await program.methods
+      .createLpPosition()
+      .accounts({
+        pool,
+        position,
+        lpMint,
+        ownerLpTokenAccount: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: provider.wallet.publicKey
+        }),
+        owner: provider.wallet.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY
+      })
+      .rpc();
+
+    const [stake] = PublicKey.findProgramAddressSync(
+      [Buffer.from("stake"), position.toBuffer()],
+      programId
+    );
+    await program.methods
+      .stakeLpNft()
+      .accounts({
+        pool,
+        position,
+        stake,
+        stakeVault: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: stake
+        }),
+        ownerLpTokenAccount: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: provider.wallet.publicKey
+        }),
+        lpMint,
+        owner: provider.wallet.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY
+      })
+      .rpc();
+
+    await program.methods
+      .unstakeLpNft()
+      .accounts({
+        pool,
+        position,
+        stake,
+        stakeVault: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: stake
+        }),
+        ownerLpTokenAccount: anchor.utils.token.associatedAddress({
+          mint: lpMint,
+          owner: provider.wallet.publicKey
+        }),
+        lpMint,
+        owner: provider.wallet.publicKey,
+        tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID
+      })
+      .rpc();
   });
 });
