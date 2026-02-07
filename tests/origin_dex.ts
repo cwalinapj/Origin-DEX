@@ -37,10 +37,16 @@ describe("origin_dex", () => {
         accounts: [
           { name: "registry", isMut: true, isSigner: false },
           { name: "pool", isMut: true, isSigner: false },
+          { name: "tokenAMint", isMut: false, isSigner: false },
+          { name: "tokenBMint", isMut: false, isSigner: false },
           { name: "admin", isMut: true, isSigner: true },
           { name: "systemProgram", isMut: false, isSigner: false }
         ],
-        args: []
+        args: [
+          { name: "feeBps", type: "u16" },
+          { name: "tokenAPriceCents", type: "u64" },
+          { name: "tokenBPriceCents", type: "u64" }
+        ]
       }
     ]
   } as anchor.Idl;
@@ -69,13 +75,37 @@ describe("origin_dex", () => {
   };
 
   const decodePool = (data: Buffer) => {
-    if (data.length < 8 + 8 + 32 + 1) {
+    if (data.length < 8 + 8 + 32 + 32 + 32 + 1 + 1 + 2 + 2 + 2 + 8 + 1) {
       throw new Error("Pool data too short");
     }
     const poolId = Number(data.readBigUInt64LE(8));
     const creator = new PublicKey(data.slice(8 + 8, 8 + 8 + 32));
-    const bump = data.readUInt8(8 + 8 + 32);
-    return { poolId, creator, bump };
+    const tokenAMint = new PublicKey(data.slice(8 + 8 + 32, 8 + 8 + 32 + 32));
+    const tokenBMint = new PublicKey(
+      data.slice(8 + 8 + 32 + 32, 8 + 8 + 32 + 32 + 32)
+    );
+    const tokenAFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32) === 1;
+    const tokenBFrozen = data.readUInt8(8 + 8 + 32 + 32 + 32 + 1) === 1;
+    const feeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 2);
+    const lpFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 4);
+    const houseFeeBps = data.readUInt16LE(8 + 8 + 32 + 32 + 32 + 6);
+    const binSpacingMilliCents = Number(
+      data.readBigUInt64LE(8 + 8 + 32 + 32 + 32 + 8)
+    );
+    const bump = data.readUInt8(8 + 8 + 32 + 32 + 32 + 16);
+    return {
+      poolId,
+      creator,
+      tokenAMint,
+      tokenBMint,
+      tokenAFrozen,
+      tokenBFrozen,
+      feeBps,
+      lpFeeBps,
+      houseFeeBps,
+      binSpacingMilliCents,
+      bump
+    };
   };
 
   it("initializes config PDA and validates data", async () => {
@@ -146,13 +176,39 @@ describe("origin_dex", () => {
       programId
     );
 
+    const tokenAMint = new PublicKey(
+      process.env.ORIGIN_DEX_TOKEN_A_MINT ||
+        "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    );
+    const tokenBMint = new PublicKey(
+      process.env.ORIGIN_DEX_TOKEN_B_MINT ||
+        "So11111111111111111111111111111111111111112"
+    );
+
+    const tokenAInfo = await provider.connection.getParsedAccountInfo(tokenAMint);
+    const tokenBInfo = await provider.connection.getParsedAccountInfo(tokenBMint);
+    const tokenAFrozen =
+      tokenAInfo.value?.data &&
+      "parsed" in tokenAInfo.value.data &&
+      tokenAInfo.value.data.parsed.info.freezeAuthority;
+    const tokenBFrozen =
+      tokenBInfo.value?.data &&
+      "parsed" in tokenBInfo.value.data &&
+      tokenBInfo.value.data.parsed.info.freezeAuthority;
+    if (!tokenAFrozen || !tokenBFrozen) {
+      // Skip if default mints are not frozen; set env vars to frozen mints to test.
+      return;
+    }
+
     const poolBefore = await provider.connection.getAccountInfo(pool);
     if (!poolBefore) {
       await program.methods
-        .createPool()
+        .createPool(100, new anchor.BN(100), new anchor.BN(100))
         .accounts({
           registry,
           pool,
+          tokenAMint,
+          tokenBMint,
           admin: provider.wallet.publicKey,
           systemProgram: SystemProgram.programId
         })
@@ -166,6 +222,14 @@ describe("origin_dex", () => {
     expect(poolParsed.creator.toBase58()).to.equal(
       provider.wallet.publicKey.toBase58()
     );
+    expect(poolParsed.tokenAMint.toBase58()).to.equal(tokenAMint.toBase58());
+    expect(poolParsed.tokenBMint.toBase58()).to.equal(tokenBMint.toBase58());
+    expect(poolParsed.tokenAFrozen).to.equal(true);
+    expect(poolParsed.tokenBFrozen).to.equal(true);
+    expect(poolParsed.feeBps).to.equal(100);
+    expect(poolParsed.houseFeeBps).to.equal(5);
+    expect(poolParsed.lpFeeBps).to.equal(95);
+    expect(poolParsed.binSpacingMilliCents).to.equal(1000);
 
     const registryAfter = await provider.connection.getAccountInfo(registry);
     expect(registryAfter).to.not.equal(null);

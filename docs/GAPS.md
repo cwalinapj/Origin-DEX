@@ -2,7 +2,11 @@
 
 ## Missing DEX program logic
 - The on-chain program only supports config/registry initialization and creating empty pool records.
-- No pool state, swaps, liquidity, or fee accounting.
+- No pool state beyond mints/fees/bin spacing; no swaps, liquidity, or fee accounting.
+- Function-based allocation logic is not implemented on-chain.
+- One-sided deposits and matching constraints are not implemented.
+- LP NFT minting and staking rewards are not implemented.
+- House-fee rebate in native token is not implemented.
 
 ## Missing IDL and client bindings
 - No generated IDL or typed client.

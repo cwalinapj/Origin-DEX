@@ -46,6 +46,8 @@ anchor build
 ```bash
 npm install
 export ORIGIN_DEX_PROGRAM_ID=ReplaceWithProgramId
+export ORIGIN_DEX_TOKEN_A_MINT=FrozenMintA
+export ORIGIN_DEX_TOKEN_B_MINT=FrozenMintB
 anchor test --provider.cluster devnet --provider.wallet ./devnet-wallet.json
 ```
 
