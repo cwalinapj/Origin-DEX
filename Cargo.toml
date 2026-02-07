@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+  "programs/origin_dex",
+]
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1

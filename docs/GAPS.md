@@ -1,23 +1,22 @@
 # Gaps To "DEX Is Working"
 
-## Missing on-chain program
-- No `Anchor.toml`, `programs/`, `Cargo.toml`, or Rust source present.
-- No IDL, migrations, or deployment tooling.
-- No program ID to verify on devnet.
+## Missing DEX program logic
+- The on-chain program only supports `initialize` and `set_admin` for a config PDA.
+- No pool creation, swaps, liquidity, or fee accounting.
 
-## Missing scripts referenced by docs
-- README references `scripts/setup_devnet_wallet_macos_v2.sh`. A placeholder exists but is not implemented.
+## Missing IDL and client bindings
+- No generated IDL or typed client.
+- Clients are minimal and only read the config PDA.
 
 ## Missing devnet operational flows
 - No pool creation or initialization instructions.
 - No liquidity seeding scripts.
 - No swap execution scripts or examples.
-- No account/seed layout documentation.
-
-## Missing integration boundary
-- The SDK only performs allocation math and does not connect to Solana.
-- No client bindings or transaction builders for creating positions, pools, or swaps.
+- No account/seed layout documentation for DEX state.
 
 ## Missing tests
 - Only unit tests for allocation math exist.
-- No integration tests against devnet.
+- No Anchor tests or devnet integration tests.
+
+## Missing scripts referenced by docs
+- README references `scripts/setup_devnet_wallet_macos_v2.sh`. A placeholder exists but is not implemented.

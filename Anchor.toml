@@ -1,0 +1,16 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+origin_dex = "ReplaceWithProgramId"
+
+[programs.devnet]
+origin_dex = "ReplaceWithProgramId"
+
+[provider]
+cluster = "devnet"
+wallet = "./devnet-wallet.json"
+
+[scripts]
+test = "cargo test"
